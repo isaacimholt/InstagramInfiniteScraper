@@ -1,14 +1,13 @@
-import heapq
-import logging
 import re
 from datetime import datetime
-from itertools import dropwhile, takewhile, islice
-from typing import Iterator, Union, Any, Callable, List
+from typing import Iterator, Union, List
+
 import pendulum
 from addict import Dict as addict
+
 from .models import InstagramPostThumb, InstagramUser, InstagramPost
 from .patches import CustomWebApiClient
-from .streams import ThumbStream
+from .streams import ThumbStream, UserStream, PostStream
 
 
 class InstagramIS:
@@ -48,133 +47,41 @@ class InstagramIS:
         )
 
     @classmethod
-    def tag_feed(cls,
-                 tag: str,
-                 attempt_order: bool = True,
-                 date_begin: Union[datetime, None] = None,
-                 date_end: Union[datetime, None] = None,
-                 max_results: Union[int, None] = None) \
-            -> Iterator[InstagramPostThumb]:
+    def tag_feed(cls, tag: str) -> Iterator[InstagramPostThumb]:
+
         feed_params = {
             'tag':   tag,
             'count': 50,
         }
-        media_path = [
-            'data',
-            'hashtag',
-            'edge_hashtag_to_media'
-        ]
-        now = pendulum.now('UTC')
-
-        def order_key(p: InstagramPostThumb) -> int:
-            return now.int_timestamp - p.created_at.int_timestamp
-
-        def filter_predicate(p: InstagramPostThumb) -> bool:
-            if date_begin and p.created_at < date_begin:
-                return False
-            if date_end and p.created_at > date_end:
-                return False
-            return True
+        media_path = ['data', 'hashtag', 'edge_hashtag_to_media']
 
         feed = cls._paginate_thumb_feed('tag_feed', feed_params, media_path)
-        if attempt_order:
-            feed = stream_order(feed, order_key)
-        if date_begin or date_end:
-            feed = stream_filter_partition(feed, filter_predicate)
-        if max_results is not None:
-            feed = stream_limit(feed, max_results)
-        return feed
+        return ThumbStream(feed)
 
     @classmethod
-    def location_feed_test(cls, location_id: int) -> ThumbStream:
+    def location_feed(cls, location_id: int) -> Iterator[InstagramPostThumb]:
+
         feed_params = {
             'location_id': location_id,
             'count':       50,
         }
-        media_path = [
-            'data',
-            'location',
-            'edge_location_to_media'
-        ]
+        media_path = ['data', 'location', 'edge_location_to_media']
+
         feed = cls._paginate_thumb_feed('location_feed', feed_params, media_path)
         return ThumbStream(feed)
 
     @classmethod
-    def location_feed(cls,
-                      location_id: int,
-                      attempt_order: bool = True,
-                      date_begin: Union[datetime, None] = None,
-                      date_end: Union[datetime, None] = None,
-                      max_results: Union[int, None] = None) \
-            -> Iterator[InstagramPostThumb]:
-        feed_params = {
-            'location_id': location_id,
-            'count':       50,
-        }
-        media_path = [
-            'data',
-            'location',
-            'edge_location_to_media'
-        ]
-        now = pendulum.now('UTC')
+    def user_feed(cls, user_id: int) -> Iterator[InstagramPostThumb]:
 
-        def order_key(p: InstagramPostThumb) -> int:
-            return now.int_timestamp - p.created_at.int_timestamp
-
-        def filter_predicate(p: InstagramPostThumb) -> bool:
-            if date_begin and p.created_at < date_begin:
-                return False
-            if date_end and p.created_at > date_end:
-                return False
-            return True
-
-        feed = cls._paginate_thumb_feed('location_feed', feed_params, media_path)
-        if attempt_order:
-            feed = stream_order(feed, order_key)
-        if date_begin or date_end:
-            feed = stream_filter_partition(feed, filter_predicate)
-        if max_results is not None:
-            feed = stream_limit(feed, max_results)
-        yield from feed
-
-    @classmethod
-    def user_feed(cls,
-                  user_id: int,
-                  attempt_order: bool = True,
-                  date_begin: Union[datetime, None] = None,
-                  date_end: Union[datetime, None] = None,
-                  max_results: Union[int, None] = None) \
-            -> Iterator[InstagramPostThumb]:
         feed_params = {
             'user_id': user_id,
             'extract': False,  # True removes data like cursor
             'count':   50,
         }
-        media_path = [
-            'data',
-            'user',
-            'edge_owner_to_timeline_media'
-        ]
-        now = pendulum.now('UTC')
-
-        def order_key(p: InstagramPostThumb) -> int:
-            return now.int_timestamp - p.created_at.int_timestamp
-
-        def filter_predicate(p: InstagramPostThumb) -> bool:
-            if date_begin and p.created_at < date_begin:
-                return False
-            if date_end and p.created_at > date_end:
-                return False
-            return True
+        media_path = ['data', 'user', 'edge_owner_to_timeline_media']
 
         feed = cls._paginate_thumb_feed('user_feed', feed_params, media_path)
-        if attempt_order:
-            feed = stream_order(feed, order_key)
-        if date_begin or date_end:
-            feed = stream_filter_partition(feed, filter_predicate)
-        if max_results is not None:
-            feed = stream_limit(feed, max_results)
-        yield from feed
+        return ThumbStream(feed)
 
     @classmethod
     def _paginate_thumb_feed(cls,
@@ -225,7 +132,7 @@ class InstagramIS:
 
     @classmethod
     def post_stream(cls, shortcodes: Iterator[str]) -> Iterator[InstagramPost]:
-        yield from (cls.post_info(shortcode) for shortcode in shortcodes)
+        return PostStream(cls.post_info(shortcode) for shortcode in shortcodes)
 
     @classmethod
     def user_info(cls, username: str):
@@ -251,7 +158,7 @@ class InstagramIS:
 
     @classmethod
     def user_stream(cls, usernames: Iterator[str]) -> Iterator[InstagramUser]:
-        yield from (cls.user_info(username) for username in usernames)
+        return UserStream(cls.user_info(username) for username in usernames)
 
 
 def _to_int(val, default=None) -> Union[int, None]:
