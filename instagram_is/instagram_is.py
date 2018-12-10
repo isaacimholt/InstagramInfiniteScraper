@@ -1,5 +1,4 @@
 import re
-from datetime import datetime
 from typing import Iterator, Union, List
 
 import pendulum
@@ -26,10 +25,7 @@ class InstagramIS:
     @classmethod
     def _node_to_post_thumb(cls, data: dict) -> InstagramPostThumb:
         data = addict(data)
-        try:
-            caption = data.edge_media_to_caption.edges[0].node.text or None
-        except IndexError:
-            caption = None
+        caption = _get_caption(data)
         return InstagramPostThumb(
             post_num_id=data.id,
             owner_num_id=_to_int(data.owner.id),
@@ -42,8 +38,8 @@ class InstagramIS:
             img_width=_to_int(data.dimensions.width),
             img_url=data.display_url or None,
             is_video=_to_bool(data.is_video),
-            hashtags=_get_hashtags(data.caption.text),
-            mentions=_get_mentions(data.caption.text),
+            hashtags=_get_hashtags(caption),
+            mentions=_get_mentions(caption),
         )
 
     @classmethod
@@ -175,11 +171,18 @@ def _to_bool(val, default=None) -> Union[bool, None]:
         return default
 
 
-def _timestamp_to_datetime(val, default=None) -> Union[datetime, None]:
+def _timestamp_to_datetime(val, default=None) -> Union[pendulum.datetime, None]:
     try:
         return pendulum.from_timestamp(val)
     except (ValueError, TypeError):
         return default
+
+
+def _get_caption(data):
+    try:
+        return data.edge_media_to_caption.edges[0].node.text or ''
+    except IndexError:
+        return ''
 
 
 # https://gist.github.com/mahmoud/237eb20108b5805aed5f
@@ -196,11 +199,11 @@ def _get_matches(text: str, pattern) -> List[str]:
     # todo: test hashtags ending with surrogate pair emojii (e.g. family, flags)
     try:
         # hashtags are case insensitive
-        hashtags = set(s.lower() for s in pattern.findall(text))
+        matches = set(s.lower() for s in pattern.findall(text))
     except TypeError:
         # https://stackoverflow.com/questions/43727583/expected-string-or-bytes-like-object
-        hashtags = set()
-    return sorted(hashtags)  # sorted so that equality matching works when updating???
+        matches = set()
+    return sorted(matches)  # sorted so that equality matching works when updating???
 
 
 def _get_hashtags(text: str) -> List[str]:

@@ -1,7 +1,6 @@
 import heapq
 import logging
 from collections.abc import Iterator as ABCIterator
-from datetime import datetime
 from itertools import takewhile, dropwhile, islice
 from typing import Callable, Iterator, Union, Any
 
@@ -19,10 +18,17 @@ class BaseStream(ABCIterator):
         self.stream = islice(self.stream, max_results)
         return self
 
-    def created_range(self, begin: datetime, end: datetime, buffer_size: int = 100):
+    def filter_created(self, start: pendulum.datetime, end: pendulum.datetime, buffer_size: int = 100):
+        """
+
+        :param start: further back in time (smaller datetime)
+        :param end: more recent (larger datetime)
+        :param buffer_size: results are buffered to sort them first
+        :return:
+        """
 
         def filter_predicate(p: InstagramPostThumb) -> bool:
-            if begin and p.created_at < begin:
+            if start and p.created_at < start:
                 return False
             if end and p.created_at > end:
                 return False
@@ -33,8 +39,12 @@ class BaseStream(ABCIterator):
 
         now = pendulum.now('UTC')
 
+        # preemptively filter near the date ranges given
+        # must leave some "wrong" results on either end for _partition_filter to trigger stream exit
+        self.stream = filter(lambda x: start.add(days=1) > x.created_at > end.subtract(days=1), self.stream)
         # must sort first otherwise wrong results
         self.stream = self._buffered_sort(self.stream, order_key, buffer_size)
+        # stop iterating after receiving item outside of date range
         self.stream = self._partition_filter(self.stream, filter_predicate)
 
         return self

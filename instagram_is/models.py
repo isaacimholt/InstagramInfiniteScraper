@@ -1,5 +1,6 @@
-from datetime import datetime
 from typing import NamedTuple, List, Dict
+
+import pendulum
 
 
 class InstagramPostThumb(NamedTuple):
@@ -9,13 +10,17 @@ class InstagramPostThumb(NamedTuple):
     shortcode: str
     comment_count: int
     like_count: int
-    created_at: datetime
+    created_at: pendulum.datetime
     img_height: int
     img_width: int
     img_url: str
     is_video: bool
     hashtags: List[str]
     mentions: List[str]
+
+    @property
+    def simple_str(self):
+        return f"{self.shortcode} {self.created_at.to_datetime_string()} {self.caption[:30]}"
 
 
 class InstagramPost(NamedTuple):
@@ -26,7 +31,7 @@ class InstagramPost(NamedTuple):
     display_url: str
     is_video: bool
     caption_is_edited: bool
-    created_at: datetime
+    created_at: pendulum.datetime
     like_count: int
     comment_count: int
     location_id: int
