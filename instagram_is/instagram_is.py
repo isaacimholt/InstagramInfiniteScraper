@@ -67,10 +67,16 @@ class InstagramIS:
         return ThumbStream(feed)
 
     @classmethod
-    def user_feed(cls, user_id: int) -> Iterator[InstagramPostThumb]:
+    def user_feed(cls, user_id_or_username: Union[int, str]) -> Iterator[InstagramPostThumb]:
+
+        if isinstance(user_id_or_username, str):
+            if user_id_or_username.isdigit():
+                user_id_or_username = int(user_id_or_username)
+            else:
+                user_id_or_username = cls.user_info(user_id_or_username).user_id
 
         feed_params = {
-            'user_id': user_id,
+            'user_id': user_id_or_username,
             'extract': False,  # True removes data like cursor
             'count':   50,
         }

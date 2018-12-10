@@ -10,9 +10,15 @@ from .models import InstagramPostThumb, InstagramPost, InstagramUser
 
 
 class BaseStream(ABCIterator):
-    def __init__(self, stream):
+    def __init__(self, stream, log_progress=1000):
         self.stream = stream
-        self.sorted = False
+        self.log_progress = log_progress
+
+    def __iter__(self):
+        for i, e in enumerate(self.stream, 1):
+            if self.log_progress and i % self.log_progress == 0:
+                print(f"Streamed {i} elements.")
+            yield e
 
     def limit(self, max_results: int):
         self.stream = islice(self.stream, max_results)
@@ -102,14 +108,14 @@ class BaseStream(ABCIterator):
 
 class ThumbStream(BaseStream):
     def __next__(self) -> InstagramPostThumb:
-        return next(self.stream)
+        return next(super())
 
 
 class PostStream(BaseStream):
     def __next__(self) -> InstagramPost:
-        return next(self.stream)
+        return next(super())
 
 
 class UserStream(BaseStream):
     def __next__(self) -> InstagramUser:
-        return next(self.stream)
+        return next(super())
