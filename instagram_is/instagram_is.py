@@ -2,7 +2,7 @@ import re
 from typing import Iterator, Union, List
 
 import pendulum
-from addict import Dict as addict
+from addict import Dict as Addict
 
 from .models import InstagramPostThumb, InstagramUser, InstagramPost
 from .patches import CustomWebApiClient
@@ -24,7 +24,7 @@ class InstagramIS:
 
     @classmethod
     def _node_to_post_thumb(cls, data: dict) -> InstagramPostThumb:
-        data = addict(data)
+        data = Addict(data)
         caption = _get_caption(data)
         return InstagramPostThumb(
             post_num_id=data.id,
@@ -90,7 +90,7 @@ class InstagramIS:
         end_cursor = None
         while has_next_page:
             r = getattr(web_api, feed_name)(**feed_kwargs, end_cursor=end_cursor)
-            media = addict(r)
+            media = Addict(r)
             for p in media_path:
                 media = media[p]
             has_next_page = media.page_info.has_next_page
@@ -101,7 +101,7 @@ class InstagramIS:
     @classmethod
     def post_info(cls, shortcode: str):
         web_api = cls._get_web_api_client()
-        d = addict(web_api.media_info2(shortcode))
+        d = Addict(web_api.media_info2(shortcode))
         return InstagramPost(
             post_num_id=d.id or None,
             shortcode=d.shortcode or None,
@@ -134,7 +134,7 @@ class InstagramIS:
     def user_info(cls, username: str):
         # not currently possible to get username from profile_id without opening post page
         web_api = cls._get_web_api_client()
-        d = addict(web_api.user_info2(user_name=username))
+        d = Addict(web_api.user_info2(user_name=username))
         return InstagramUser(
             biography=d.biography or None,
             website=d.website or None,
