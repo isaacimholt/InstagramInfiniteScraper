@@ -4,7 +4,9 @@ from collections.abc import Iterator as ABCIterator
 from datetime import datetime
 from itertools import takewhile, dropwhile, islice
 from typing import Callable, Iterator, Union, Any
+
 import pendulum
+
 from .models import InstagramPostThumb, InstagramPost, InstagramUser
 
 
@@ -13,30 +15,12 @@ class BaseStream(ABCIterator):
         self.stream = stream
         self.sorted = False
 
-    def sort(self, sort_key: Callable, buffer_size: int = 100):
-        if self.sorted:
-            return self
-        self.stream = self._buffered_sort(self.stream, sort_key, buffer_size)
-        self.sorted = True
-        return self
-
-    def sort_created(self, buffer_size: int = 100):
-        now = pendulum.now('UTC')
-
-        def order_key(p: InstagramPostThumb) -> int:
-            return now.int_timestamp - p.created_at.int_timestamp
-
-        return self.sort(order_key, buffer_size)
-
     def limit(self, max_results: int):
         self.stream = islice(self.stream, max_results)
         return self
 
-    def filter(self, predicate: Callable):
-        self.stream = self._partition_filter(self.stream, predicate)
-        return self
+    def created_range(self, begin: datetime, end: datetime, buffer_size: int = 100):
 
-    def created_range(self, begin: datetime, end: datetime):
         def filter_predicate(p: InstagramPostThumb) -> bool:
             if begin and p.created_at < begin:
                 return False
@@ -44,8 +28,16 @@ class BaseStream(ABCIterator):
                 return False
             return True
 
+        def order_key(p: InstagramPostThumb) -> int:
+            return now.int_timestamp - p.created_at.int_timestamp
+
+        now = pendulum.now('UTC')
+
         # must sort first otherwise wrong results
-        return self.sort_created().filter(filter_predicate)
+        self.stream = self._buffered_sort(self.stream, order_key, buffer_size)
+        self.stream = self._partition_filter(self.stream, filter_predicate)
+
+        return self
 
     @staticmethod
     def _buffered_sort(stream: Iterator[Any],
