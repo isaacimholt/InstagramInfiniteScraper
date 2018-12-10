@@ -254,43 +254,6 @@ class InstagramIS:
         yield from (cls.user_info(username) for username in usernames)
 
 
-def stream_order(stream: Iterator[Any],
-                 key: Union[Callable, None] = None,
-                 buffer: int = 100):
-    """
-    Make best-effort attempt to order (asc) results from a stream.
-    info on key: https://docs.python.org/3/glossary.html#term-key-function
-    :param key: function applied to elements to decide order, smallest -> largest
-    :param stream: stream of items to order
-    :param buffer: sorted buffer to push/pop from
-    :return: elements of the stream
-    """
-
-    def _get(item):
-        if key is not None:
-            return item[1]
-        else:
-            return item
-
-    heap = []
-    prev = None  # keep track of last element to warn in case elements are not sorted
-    for i in stream:
-        if key is not None:
-            i = (key(i), i)
-        if buffer:
-            heapq.heappush(heap, i)
-            buffer -= 1
-            continue
-        curr = heapq.heappushpop(heap, i)
-        if prev is not None and curr < prev:
-            logging.warning(
-                "Stream order is compromised, if order is important increase buffer size")
-        yield _get(curr)
-        prev = curr
-    while heap:
-        yield _get(heapq.heappop(heap))
-
-
 def _to_int(val, default=None) -> Union[int, None]:
     try:
         return int(val)
