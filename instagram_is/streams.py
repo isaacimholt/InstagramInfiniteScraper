@@ -24,7 +24,14 @@ class BaseStream(ABCIterator):
         self.stream = islice(self.stream, max_results)
         return self
 
-    def filter_created(self, start: pendulum.datetime, end: pendulum.datetime, buffer_size: int = 100):
+    def to_set(self):
+        return set(self.stream)
+
+    def to_list(self):
+        return list(self.stream)
+
+    def filter_date_created(self, start: pendulum.datetime, end: pendulum.datetime,
+                            buffer_size: int = 100):
         """
 
         :param start: further back in time (smaller datetime)
@@ -47,7 +54,9 @@ class BaseStream(ABCIterator):
 
         # preemptively filter near the date ranges given
         # must leave some "wrong" results on either end for _partition_filter to trigger stream exit
-        self.stream = filter(lambda x: start.add(days=1) > x.created_at > end.subtract(days=1), self.stream)
+        self.stream = filter(
+            lambda x: start.subtract(days=1) > x.created_at > end.add(days=1),
+            self.stream)
         # must sort first otherwise wrong results
         self.stream = self._buffered_sort(self.stream, order_key, buffer_size)
         # stop iterating after receiving item outside of date range
