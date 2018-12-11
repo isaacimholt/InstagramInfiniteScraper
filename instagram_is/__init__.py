@@ -1,1 +1,1 @@
-from .instagram_is import InstagramIS
+from .instagram_is import InstagramIS as instagram_is

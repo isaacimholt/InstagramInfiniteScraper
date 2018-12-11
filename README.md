@@ -1,11 +1,8 @@
 ```python
-import pendulum
-from instagram_is import InstagramIS
+from instagram_is import instagram_is
 
-begin = '2018-12-02 17:00'
-begin = pendulum.datetime(2018, 12, 2, 18, tz='Europe/Rome').in_tz('UTC')
-end = '2018-12-02 22:00'
-end = pendulum.datetime(2018, 12, 2, 23, tz='Europe/Rome').in_tz('UTC')
+after = '2018-12-02 17:00'  # utc
+before = '2018-12-02 22:00' # utc
 locations = [
     338173398,
     386067484,
@@ -18,8 +15,9 @@ locations = [
     1965086357122989,
 ]
 
-InstagramIS\
+instagram_is\
     .location_feed(locations)\
-    .date_range(begin, end)\
+    .date_range(after, before)\
+    .unique()\
     .to_csv('my_data.csv')
 ```

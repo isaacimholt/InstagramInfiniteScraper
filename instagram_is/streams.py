@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import csv
 from collections.abc import Iterator as ABCIterator
+from datetime import datetime
 from itertools import dropwhile, islice, chain
 from operator import attrgetter
-from typing import Callable, Iterator, Any, List, Optional, Sequence, Set
+from typing import Callable, Iterator, Any, List, Optional, Sequence, Set, Union
 
 import pendulum
 from more_itertools import unique_everseen
@@ -78,8 +79,8 @@ class BaseStream(ABCIterator):
                            max_tail_skip=max_tail_skip)
 
     def date_range(self,
-                   after: pendulum.datetime,
-                   before: pendulum.datetime,
+                   after: Optional[Union[int, str, datetime, pendulum.datetime]],
+                   before: Optional[Union[int, str, datetime, pendulum.datetime]],
                    max_tail_skip: Optional[int] = 50) -> BaseStream:
         """
         Filter posts *created* in specified date range.
@@ -93,7 +94,8 @@ class BaseStream(ABCIterator):
         """
 
         return self.filter_range(attr='created_at',
-                                 gte=after, lte=before,
+                                 gte=_get_datetime(after),
+                                 lte=_get_datetime(before),
                                  max_tail_skip=max_tail_skip)
 
     @staticmethod
@@ -130,6 +132,16 @@ class BaseStream(ABCIterator):
             writer = csv.writer(csv_file)
             writer.writerow(header_row)
             writer.writerows(stream)
+
+
+def _get_datetime(d: Union[int, str, datetime, pendulum.datetime]) -> pendulum.datetime:
+    if isinstance(d, str):
+        return pendulum.parse(d, tz='UTC')
+    if isinstance(d, int):
+        return pendulum.from_timestamp(d, tz='UTC')
+    if isinstance(d, datetime):
+        return pendulum.instance(d, tz='UTC')
+    return d
 
 
 class ThumbStream(BaseStream):
