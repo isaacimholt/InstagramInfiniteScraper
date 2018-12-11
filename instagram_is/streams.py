@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import csv
 import heapq
 import logging
 from collections.abc import Iterator as ABCIterator
 from itertools import takewhile, dropwhile, islice
 from operator import attrgetter
-from typing import Callable, Iterator, Union, Any, List, Optional
+from typing import Callable, Iterator, Union, Any, List, Optional, Sequence
 
 import pendulum
 
@@ -119,17 +120,40 @@ class BaseStream(ABCIterator):
         stream = takewhile(predicate, stream)
         yield from stream
 
+    @staticmethod
+    def _save_csv(stream: Iterator, file_name: str, header_row: Sequence[str]) -> None:
+        with open(file_name, 'w', newline='', encoding='utf-8') as csv_file:
+            # using newline='' corrects empty lines
+            writer = csv.writer(csv_file)
+            writer.writerow(header_row)
+            writer.writerows(stream)
+
 
 class ThumbStream(BaseStream):
     def __next__(self) -> InstagramPostThumb:
         return next(super())
+
+    def to_csv(self,
+               file_name: str,
+               header_row: Sequence[str] = InstagramPostThumb._fields) -> None:
+        return self._save_csv(self.stream, file_name, header_row)
 
 
 class PostStream(BaseStream):
     def __next__(self) -> InstagramPost:
         return next(super())
 
+    def to_csv(self,
+               file_name: str,
+               header_row: Sequence[str] = InstagramPost._fields) -> None:
+        return self._save_csv(self.stream, file_name, header_row)
+
 
 class UserStream(BaseStream):
     def __next__(self) -> InstagramUser:
         return next(super())
+
+    def to_csv(self,
+               file_name: str,
+               header_row: Sequence[str] = InstagramUser._fields) -> None:
+        return self._save_csv(self.stream, file_name, header_row)
