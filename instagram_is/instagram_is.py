@@ -55,19 +55,18 @@ class InstagramIS:
         return ThumbStream(feed)
 
     @classmethod
-    def location_feed(cls, location_id: int) -> Iterator[InstagramPostThumb]:
+    def location_feed(cls, *location_ids: int) -> Iterator[InstagramPostThumb]:
 
-        feed_params = {
-            'location_id': location_id,
-            'count':       50,
-        }
+        feed_params = [{'location_id': _id, 'count': 50} for _id in location_ids]
         media_path = ['data', 'location', 'edge_location_to_media']
 
-        feed = cls._paginate_thumb_feed('location_feed', feed_params, media_path)
-        return ThumbStream(feed)
+        feeds = [cls._paginate_thumb_feed('location_feed', _p, media_path)
+                 for _p in feed_params]
+        return ThumbStream(*feeds)
 
     @classmethod
-    def user_feed(cls, user_id_or_username: Union[int, str]) -> Iterator[InstagramPostThumb]:
+    def user_feed(cls, user_id_or_username: Union[int, str]) -> Iterator[
+        InstagramPostThumb]:
 
         if isinstance(user_id_or_username, str):
             if user_id_or_username.isdigit():

@@ -4,18 +4,20 @@ import csv
 import heapq
 import logging
 from collections.abc import Iterator as ABCIterator
-from itertools import takewhile, dropwhile, islice
+from itertools import dropwhile, islice
 from operator import attrgetter
-from typing import Callable, Iterator, Union, Any, List, Optional, Sequence
+from typing import Callable, Iterator, Any, List, Optional, Sequence
 
 import pendulum
+from more_itertools import roundrobin
 
 from .models import InstagramPostThumb, InstagramPost, InstagramUser
 
 
 class BaseStream(ABCIterator):
-    def __init__(self, stream, log_progress=1000):
-        self.stream = stream
+    def __init__(self, *streams, log_progress=1000):
+        self._streams = list(streams)
+        self.stream = None
         self.log_progress = log_progress
 
     def __iter__(self):
@@ -24,27 +26,38 @@ class BaseStream(ABCIterator):
                 print(f"Streamed {i} elements.")
             yield e
 
+    def _get_stream(self):
+        return self.stream or roundrobin(*self._streams)
+
     def limit(self, max_results: int) -> BaseStream:
-        self.stream = islice(self.stream, max_results)
+        # must combine streams to apply limit
+        self.stream = islice(self._get_stream(), max_results)
         return self
 
     def to_list(self, sort: Optional[str] = None) -> List:
-        mylist = list(self.stream)
+        mylist = list(self._get_stream())
         if sort:
             mylist.sort(key=attrgetter(sort), reverse=True)
         return mylist
 
-    def filter_date_created(self,
-                            start: pendulum.datetime,
-                            end: pendulum.datetime,
-                            buffer_size: int = 100) -> BaseStream:
+    def date_range(self,
+                   start: pendulum.datetime,
+                   end: pendulum.datetime) -> BaseStream:
         """
+        Filter posts *created* in specified date range.
+        Note that this may be different than instagram feed since older posts that were
+        recently *modified* will not appear in this stream.
 
-        :param start: further back in time (smaller datetime)
-        :param end: more recent (larger datetime)
-        :param buffer_size: results are buffered to sort them first
+        :param start: created; further back in time (smaller datetime)
+        :param end: created; more recent (larger datetime)
         :return:
         """
+
+        if self.stream:
+            logging.warning(f"Apply date_range after other operators but before to_* "
+                            f"methods.")
+
+        now = pendulum.now('UTC')
 
         def filter_predicate(p: InstagramPostThumb) -> bool:
             if start and p.created_at < start:
@@ -56,23 +69,17 @@ class BaseStream(ABCIterator):
         def order_key(p: InstagramPostThumb) -> int:
             return now.int_timestamp - p.created_at.int_timestamp
 
-        now = pendulum.now('UTC')
-
-        # preemptively filter near the date ranges given
-        # must leave some "wrong" results on either end for _partition_filter to trigger stream exit
-        self.stream = filter(
-            lambda x: end.add(days=1) > x.created_at > start.subtract(days=1),
-            self.stream)
-        # must sort first otherwise wrong results
-        self.stream = self._buffered_sort(self.stream, order_key, buffer_size)
         # stop iterating after receiving item outside of date range
-        self.stream = self._partition_filter(self.stream, filter_predicate)
+        self._streams[:] = [self._strip(s, filter_predicate) for s in self._streams]
+        # self.stream = self._strip(self.stream, filter_predicate, 2*buffer_size*self.stream_count)
+        # must sort first otherwise wrong results
+        # self.stream = self._buffered_sort(self.stream, order_key, buffer_size)
 
         return self
 
     @staticmethod
     def _buffered_sort(stream: Iterator[Any],
-                       key: Union[Callable, None] = None,
+                       key: Optional[Callable] = None,
                        buffer: int = 100):
         """
         Make best-effort attempt to order (asc) results from a stream.
@@ -108,7 +115,7 @@ class BaseStream(ABCIterator):
             yield _get(heapq.heappop(heap))
 
     @staticmethod
-    def _partition_filter(stream: Iterator[Any], predicate: Callable):
+    def _strip(stream: Iterator[Any], predicate: Callable, stop_after: int = 50):
         """
         Ignore items from stream until predicate is true, then yield items until predicate is
         false, at which point the stream is exited.
@@ -116,9 +123,20 @@ class BaseStream(ABCIterator):
         :param predicate:
         :return: elements of the stream
         """
+
         stream = dropwhile(lambda x: not predicate(x), stream)
-        stream = takewhile(predicate, stream)
-        yield from stream
+
+        # elements we need start now
+        dropped = 0
+        for e in stream:
+            if predicate(e):
+                yield e
+                dropped = 0
+            elif dropped >= stop_after:
+                print("torna n'ata vota, jesù crì")
+                return
+            else:
+                dropped += 1
 
     @staticmethod
     def _save_csv(stream: Iterator, file_name: str, header_row: Sequence[str]) -> None:
@@ -136,7 +154,7 @@ class ThumbStream(BaseStream):
     def to_csv(self,
                file_name: str,
                header_row: Sequence[str] = InstagramPostThumb._fields) -> None:
-        return self._save_csv(self.stream, file_name, header_row)
+        return self._save_csv(self._get_stream(), file_name, header_row)
 
 
 class PostStream(BaseStream):
@@ -146,7 +164,7 @@ class PostStream(BaseStream):
     def to_csv(self,
                file_name: str,
                header_row: Sequence[str] = InstagramPost._fields) -> None:
-        return self._save_csv(self.stream, file_name, header_row)
+        return self._save_csv(self._get_stream(), file_name, header_row)
 
 
 class UserStream(BaseStream):
@@ -156,4 +174,4 @@ class UserStream(BaseStream):
     def to_csv(self,
                file_name: str,
                header_row: Sequence[str] = InstagramUser._fields) -> None:
-        return self._save_csv(self.stream, file_name, header_row)
+        return self._save_csv(self._get_stream(), file_name, header_row)
