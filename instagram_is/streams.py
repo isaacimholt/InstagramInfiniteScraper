@@ -51,9 +51,36 @@ class BaseStream(ABCIterator):
     def to_set(self) -> Set:
         return set(self._stream)
 
+    def filter(self,
+               predicate: Callable,
+               max_tail_skip: Optional[int] = None) -> BaseStream:
+
+        self._streams[:] = [self._filter(stream=s,
+                                         predicate=predicate,
+                                         max_tail_skip=max_tail_skip)
+                            for s in self._streams]
+        return self
+
+    def filter_range(self,
+                     attr: str,
+                     gte: Optional[Any] = None,
+                     lte: Optional[Any] = None,
+                     max_tail_skip: Optional[int] = None):
+
+        def filter_predicate(e: Any) -> bool:
+            if gte is not None and getattr(e, attr) < gte:
+                return False
+            if lte is not None and getattr(e, attr) > lte:
+                return False
+            return True
+
+        return self.filter(predicate=filter_predicate,
+                           max_tail_skip=max_tail_skip)
+
     def date_range(self,
                    after: pendulum.datetime,
-                   before: pendulum.datetime) -> BaseStream:
+                   before: pendulum.datetime,
+                   max_tail_skip: Optional[int] = 50) -> BaseStream:
         """
         Filter posts *created* in specified date range.
         Note that this may be different than instagram feed since older posts that were
@@ -61,23 +88,16 @@ class BaseStream(ABCIterator):
 
         :param after: created; further back in time (smaller datetime)
         :param before: created; more recent (larger datetime)
+        :param max_tail_skip:
         :return:
         """
 
-        def filter_predicate(p: InstagramPostThumb) -> bool:
-            if after and p.created_at < after:
-                return False
-            if before and p.created_at > before:
-                return False
-            return True
-
-        # stop iterating after receiving item outside of date range
-        self._streams[:] = [self._strip(s, filter_predicate) for s in self._streams]
-
-        return self
+        return self.filter_range(attr='created_at',
+                                 gte=after, lte=before,
+                                 max_tail_skip=max_tail_skip)
 
     @staticmethod
-    def _strip(stream: Iterator[Any], predicate: Callable, stop_after: int = 50):
+    def _filter(stream: Iterator[Any], predicate: Callable, max_tail_skip: Optional[int] = 50):
         """
         Ignore items from stream until predicate is true, then yield items until predicate is
         false, at which point the stream is exited.
@@ -86,19 +106,22 @@ class BaseStream(ABCIterator):
         :return: elements of the stream
         """
 
+        if not max_tail_skip:
+            yield from filter(predicate, stream)
+
         stream = dropwhile(lambda x: not predicate(x), stream)
 
         # elements we need start now
-        dropped = 0
+        skipped = 0
         for e in stream:
             if predicate(e):
                 yield e
-                dropped = 0
-            elif dropped >= stop_after:
+                skipped = 0
+            elif skipped >= max_tail_skip:
                 print("torna n'ata vota, jesù crì")
                 return
             else:
-                dropped += 1
+                skipped += 1
 
     @staticmethod
     def _save_csv(stream: Iterator, file_name: str, header_row: Sequence[str]) -> None:
