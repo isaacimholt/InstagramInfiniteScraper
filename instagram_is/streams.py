@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import heapq
 import logging
 from collections.abc import Iterator as ABCIterator
 from itertools import takewhile, dropwhile, islice
-from typing import Callable, Iterator, Union, Any
+from operator import attrgetter
+from typing import Callable, Iterator, Union, Any, List, Optional
 
 import pendulum
 
@@ -20,18 +23,20 @@ class BaseStream(ABCIterator):
                 print(f"Streamed {i} elements.")
             yield e
 
-    def limit(self, max_results: int):
+    def limit(self, max_results: int) -> BaseStream:
         self.stream = islice(self.stream, max_results)
         return self
 
-    def to_set(self):
-        return set(self.stream)
+    def to_list(self, sort: Optional[str] = None) -> List:
+        mylist = list(self.stream)
+        if sort:
+            mylist.sort(key=attrgetter(sort))
+        return mylist
 
-    def to_list(self):
-        return list(self.stream)
-
-    def filter_date_created(self, start: pendulum.datetime, end: pendulum.datetime,
-                            buffer_size: int = 100):
+    def filter_date_created(self,
+                            start: pendulum.datetime,
+                            end: pendulum.datetime,
+                            buffer_size: int = 100) -> BaseStream:
         """
 
         :param start: further back in time (smaller datetime)
@@ -55,7 +60,7 @@ class BaseStream(ABCIterator):
         # preemptively filter near the date ranges given
         # must leave some "wrong" results on either end for _partition_filter to trigger stream exit
         self.stream = filter(
-            lambda x: start.subtract(days=1) > x.created_at > end.add(days=1),
+            lambda x: end.add(days=1) > x.created_at > start.subtract(days=1),
             self.stream)
         # must sort first otherwise wrong results
         self.stream = self._buffered_sort(self.stream, order_key, buffer_size)
