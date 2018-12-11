@@ -48,9 +48,9 @@ class InstagramIS:
 
         tags = collapse(tags)
         params = ({
-                      'tag':   t,
-                      'count': 50
-                      } for t in tags)
+            'tag':   t,
+            'count': 50
+        } for t in tags)
         media_path = ('data', 'hashtag', 'edge_hashtag_to_media')
         feeds = (cls._paginate_thumb_feed('tag_feed', p, media_path) for p in params)
         return ThumbStream(feeds)
@@ -62,9 +62,9 @@ class InstagramIS:
         location_ids = collapse(location_ids)
         location_ids = (_to_int(i) for i in location_ids)
         params = ({
-                      'location_id': i,
-                      'count':       50
-                      } for i in location_ids)
+            'location_id': i,
+            'count':       50
+        } for i in location_ids)
         media_path = ('data', 'location', 'edge_location_to_media')
         feeds = (cls._paginate_thumb_feed('location_feed', p, media_path) for p in params)
         return ThumbStream(feeds)
