@@ -3,6 +3,7 @@ from typing import Iterator, Union, List
 
 import pendulum
 from addict import Dict as Addict
+from more_itertools import collapse
 
 from .models import InstagramPostThumb, InstagramUser, InstagramPost
 from .patches import CustomWebApiClient
@@ -43,46 +44,49 @@ class InstagramIS:
         )
 
     @classmethod
-    def tag_feed(cls, tag: str) -> Iterator[InstagramPostThumb]:
+    def tag_feed(cls, *tags: Union[str, Iterator[str]]) -> Iterator[InstagramPostThumb]:
 
-        feed_params = {
-            'tag':   tag,
-            'count': 50,
-        }
-        media_path = ['data', 'hashtag', 'edge_hashtag_to_media']
-
-        feed = cls._paginate_thumb_feed('tag_feed', feed_params, media_path)
-        return ThumbStream(feed)
-
-    @classmethod
-    def location_feed(cls, *location_ids: int) -> Iterator[InstagramPostThumb]:
-
-        feed_params = [{'location_id': _id, 'count': 50} for _id in location_ids]
-        media_path = ['data', 'location', 'edge_location_to_media']
-
-        feeds = [cls._paginate_thumb_feed('location_feed', _p, media_path)
-                 for _p in feed_params]
-        return ThumbStream(*feeds)
+        tags = collapse(tags)
+        params = ({
+                      'tag':   t,
+                      'count': 50
+                      } for t in tags)
+        media_path = ('data', 'hashtag', 'edge_hashtag_to_media')
+        feeds = (cls._paginate_thumb_feed('tag_feed', p, media_path) for p in params)
+        return ThumbStream(feeds)
 
     @classmethod
-    def user_feed(cls, user_id_or_username: Union[int, str]) -> Iterator[
-        InstagramPostThumb]:
+    def location_feed(cls, *location_ids: Union[int, str, Iterator[Union[int, str]]]) \
+            -> Iterator[InstagramPostThumb]:
 
-        if isinstance(user_id_or_username, str):
-            if user_id_or_username.isdigit():
-                user_id_or_username = int(user_id_or_username)
-            else:
-                user_id_or_username = cls.user_info(user_id_or_username).user_id
+        location_ids = collapse(location_ids)
+        location_ids = (_to_int(i) for i in location_ids)
+        params = ({
+                      'location_id': i,
+                      'count':       50
+                      } for i in location_ids)
+        media_path = ('data', 'location', 'edge_location_to_media')
+        feeds = (cls._paginate_thumb_feed('location_feed', p, media_path) for p in params)
+        return ThumbStream(feeds)
 
-        feed_params = {
-            'user_id': user_id_or_username,
+    @classmethod
+    def user_feed(cls, *user_ids_or_usernames: Union[int, str, Iterator[Union[int, str]]]) \
+            -> Iterator[InstagramPostThumb]:
+        """
+
+        :param user_ids_or_usernames: note that passing a username will require an additional url get
+        :return:
+        """
+        user_ids_or_usernames = collapse(user_ids_or_usernames)
+        user_ids = (_to_int(i) or cls.user_info(i).user_id for i in user_ids_or_usernames)
+        params = ({
+            'user_id': i,
             'extract': False,  # True removes data like cursor
             'count':   50,
-        }
-        media_path = ['data', 'user', 'edge_owner_to_timeline_media']
-
-        feed = cls._paginate_thumb_feed('user_feed', feed_params, media_path)
-        return ThumbStream(feed)
+        } for i in user_ids)
+        media_path = ('data', 'user', 'edge_owner_to_timeline_media')
+        feeds = (cls._paginate_thumb_feed('user_feed', p, media_path) for p in params)
+        return ThumbStream(feeds)
 
     @classmethod
     def _paginate_thumb_feed(cls,
