@@ -30,7 +30,7 @@ class BaseStream(ABCIterator):
     def to_list(self, sort: Optional[str] = None) -> List:
         mylist = list(self.stream)
         if sort:
-            mylist.sort(key=attrgetter(sort))
+            mylist.sort(key=attrgetter(sort), reverse=True)
         return mylist
 
     def filter_date_created(self,

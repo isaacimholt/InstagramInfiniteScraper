@@ -10,4 +10,5 @@ likes = InstagramIS\
     .filter_date_created(begin, end)\
     .limit(100)\
     .to_list(sort='like_count')
+print(likes[:5])
 ```
