@@ -72,6 +72,7 @@ class InstagramIS:
     @classmethod
     def user_feed(cls, *user_ids_or_usernames: Union[int, str, Iterator[Union[int, str]]]) \
             -> Iterator[InstagramPostThumb]:
+        # todo: better return type e.g. ThumbStream[InstagramPostThumb]
         """
 
         :param user_ids_or_usernames: note that passing a username will require an additional url get
@@ -108,7 +109,7 @@ class InstagramIS:
                 yield cls._node_to_post_thumb(edge.node)
 
     @classmethod
-    def post_info(cls, shortcode: str):
+    def post_info(cls, shortcode: str) -> InstagramPost:
         web_api = cls._get_web_api_client()
         d = Addict(web_api.media_info2(shortcode))
         return InstagramPost(
@@ -140,8 +141,18 @@ class InstagramIS:
         return PostStream(cls.post_info(shortcode) for shortcode in shortcodes)
 
     @classmethod
-    def user_info(cls, username: str):
-        # not currently possible to get username from profile_id without opening post page
+    def user_info(cls, username_or_user_id: str) -> InstagramUser:
+
+        # todo: username <-> user_id bidict cache
+
+        if not isinstance(username_or_user_id, str) or username_or_user_id.isdigit():
+            user_id = _to_int(username_or_user_id)
+            first_thumb = cls.user_feed(user_id).limit(1).to_list()[0]
+            first_post = cls.post_info(first_thumb.shortcode)
+            username_or_user_id = first_post.owner_username
+
+        username = username_or_user_id
+
         web_api = cls._get_web_api_client()
         d = Addict(web_api.user_info2(user_name=username))
         return InstagramUser(
@@ -162,8 +173,10 @@ class InstagramIS:
         )
 
     @classmethod
-    def user_stream(cls, usernames: Iterator[str]) -> Iterator[InstagramUser]:
-        return UserStream(cls.user_info(username) for username in usernames)
+    def user_stream(cls, *usernames_or_user_ids: Union[int, str, Iterator[Union[int, str]]]) \
+            -> Iterator[InstagramUser]:
+        usernames_or_user_ids = collapse(usernames_or_user_ids)
+        return UserStream(cls.user_info(i) for i in usernames_or_user_ids)
 
 
 def _to_int(val, default=None) -> Union[int, None]:

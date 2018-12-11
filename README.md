@@ -15,6 +15,18 @@ locations = [
     1965086357122989,
 ]
 
+top_posts = instagram_is\
+    .location_feed(locations)\
+    .date_range(after, before)\
+    .unique()\
+    .to_list(sort='like_count')[:5]
+
+top_users = [p.owner_num_id for p in top_posts]
+
+instagram_is\
+    .user_stream(top_users)\
+    .to_csv('top_influencers.csv')
+
 instagram_is\
     .location_feed(locations)\
     .date_range(after, before)\

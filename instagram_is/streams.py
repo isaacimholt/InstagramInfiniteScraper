@@ -120,7 +120,6 @@ class BaseStream(ABCIterator):
                 yield e
                 skipped = 0
             elif skipped >= max_tail_skip:
-                print("torna n'ata vota, jesù crì")
                 return
             else:
                 skipped += 1
