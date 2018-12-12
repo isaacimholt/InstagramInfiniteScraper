@@ -9,7 +9,7 @@ from operator import attrgetter
 from typing import Callable, Iterator, Any, List, Optional, Sequence, Set, Union
 
 import pendulum
-from more_itertools import unique_everseen
+from more_itertools import unique_everseen, take
 
 from .models import InstagramPostThumb, InstagramPost, InstagramUser
 
@@ -68,8 +68,14 @@ class BaseStream(ABCIterator):
     def to_set(self) -> Set:
         return set(self._stream)
 
+    def top(self, num: int, attr: str, unique: bool = True) -> BaseStream:
+        self._stream = sort_n(
+            self._stream, num=num, key=attrgetter(attr), reverse=True, unique=unique
+        )
+        return self
+
     def filter(
-            self, predicate: Callable, max_tail_skip: Optional[int] = None
+        self, predicate: Callable, max_tail_skip: Optional[int] = None
     ) -> BaseStream:
 
         filter_partial = partial(
@@ -80,11 +86,11 @@ class BaseStream(ABCIterator):
         return self
 
     def filter_range(
-            self,
-            attr: str,
-            gte: Optional[Any] = None,
-            lte: Optional[Any] = None,
-            max_tail_skip: Optional[int] = None,
+        self,
+        attr: str,
+        gte: Optional[Any] = None,
+        lte: Optional[Any] = None,
+        max_tail_skip: Optional[int] = None,
     ):
         def filter_predicate(e: Any) -> bool:
             if gte is not None and getattr(e, attr) < gte:
@@ -96,10 +102,10 @@ class BaseStream(ABCIterator):
         return self.filter(predicate=filter_predicate, max_tail_skip=max_tail_skip)
 
     def date_range(
-            self,
-            after: Optional[Union[int, str, datetime, pendulum.datetime]],
-            before: Optional[Union[int, str, datetime, pendulum.datetime]],
-            max_tail_skip: Optional[int] = 50,
+        self,
+        after: Optional[Union[int, str, datetime, pendulum.datetime]],
+        before: Optional[Union[int, str, datetime, pendulum.datetime]],
+        max_tail_skip: Optional[int] = 50,
     ) -> BaseStream:
         """
         Filter posts *created* in specified date range.
@@ -121,7 +127,7 @@ class BaseStream(ABCIterator):
 
     @staticmethod
     def _filter(
-            stream: Iterator[Any], predicate: Callable, max_tail_skip: Optional[int] = 50
+        stream: Iterator[Any], predicate: Callable, max_tail_skip: Optional[int] = 50
     ):
         """
         Ignore items from stream until predicate is true, then yield items until predicate is
@@ -156,6 +162,34 @@ class BaseStream(ABCIterator):
             writer.writerows(stream)
 
 
+def sort_n(
+    stream: Iterator[Any],
+    num: Optional[int],
+    key: Optional[Callable] = None,
+    reverse: bool = False,
+    unique: bool = True,
+) -> Iterator[Any]:
+    """
+    Sort a stream. Processes the whole stream, but loads only num*2 elements in memory.
+    :param stream:
+    :param num:
+    :param key:
+    :param reverse:
+    :param unique:
+    :return:
+    """
+
+    results = []
+    while True:
+        buffer = take(num, stream)
+        if not buffer:
+            return results
+        if unique:
+            buffer = set(buffer)
+        results.extend(buffer)
+        results = sorted(results, key=key, reverse=reverse)[:num]
+
+
 def _get_datetime(d: Union[int, str, datetime, pendulum.datetime]) -> pendulum.datetime:
     if isinstance(d, str):
         return pendulum.parse(d, tz="UTC")
@@ -171,7 +205,7 @@ class ThumbStream(BaseStream):
         return next(super())
 
     def to_csv(
-            self, file_name: str, header_row: Sequence[str] = InstagramPostThumb._fields
+        self, file_name: str, header_row: Sequence[str] = InstagramPostThumb._fields
     ) -> None:
         return self._save_csv(self._stream, file_name, header_row)
 
@@ -181,7 +215,7 @@ class PostStream(BaseStream):
         return next(super())
 
     def to_csv(
-            self, file_name: str, header_row: Sequence[str] = InstagramPost._fields
+        self, file_name: str, header_row: Sequence[str] = InstagramPost._fields
     ) -> None:
         return self._save_csv(self._stream, file_name, header_row)
 
@@ -191,6 +225,6 @@ class UserStream(BaseStream):
         return next(super())
 
     def to_csv(
-            self, file_name: str, header_row: Sequence[str] = InstagramUser._fields
+        self, file_name: str, header_row: Sequence[str] = InstagramUser._fields
     ) -> None:
         return self._save_csv(self._stream, file_name, header_row)

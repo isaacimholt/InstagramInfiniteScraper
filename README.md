@@ -18,8 +18,7 @@ locations = [
 top_posts = instagram_is\
     .location_feed(locations)\
     .date_range(after, before)\
-    .unique()\
-    .to_list(sort='like_count')[:5]
+    .top(5, 'like_count', unique=True)
 
 top_users = (p.owner_num_id for p in top_posts)
 

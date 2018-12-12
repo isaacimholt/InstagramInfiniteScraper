@@ -1,5 +1,5 @@
 import re
-from typing import Iterator, Union, List
+from typing import Iterator, Union, Sequence
 
 import pendulum
 from addict import Dict as Addict
@@ -54,7 +54,7 @@ class InstagramIS:
 
     @classmethod
     def location_feed(
-            cls, *location_ids: Union[int, str, Iterator[Union[int, str]]]
+        cls, *location_ids: Union[int, str, Iterator[Union[int, str]]]
     ) -> Iterator[InstagramPostThumb]:
 
         location_ids = collapse(location_ids)
@@ -68,7 +68,7 @@ class InstagramIS:
 
     @classmethod
     def user_feed(
-            cls, *user_ids_or_usernames: Union[int, str, Iterator[Union[int, str]]]
+        cls, *user_ids_or_usernames: Union[int, str, Iterator[Union[int, str]]]
     ) -> Iterator[InstagramPostThumb]:
         # todo: better return type e.g. ThumbStream[InstagramPostThumb]
         """
@@ -84,7 +84,7 @@ class InstagramIS:
             {
                 "user_id": i,
                 "extract": False,  # True removes data like cursor
-                "count":   50,
+                "count": 50,
             }
             for i in user_ids
         )
@@ -94,7 +94,7 @@ class InstagramIS:
 
     @classmethod
     def _paginate_thumb_feed(
-            cls, feed_name: str, feed_kwargs: dict, media_path: Iterator[str]
+        cls, feed_name: str, feed_kwargs: dict, media_path: Iterator[str]
     ) -> Iterator[InstagramPostThumb]:
         web_api = cls._get_web_api_client()
         has_next_page = True
@@ -175,11 +175,11 @@ class InstagramIS:
 
     @classmethod
     def user_stream(
-            cls, *usernames_or_user_ids: Union[int, str, Iterator[Union[int, str]]]
+        cls, *usernames_or_user_ids: Union[int, str, Iterator[Union[int, str]]]
     ) -> Iterator[InstagramUser]:
         usernames_or_user_ids = collapse(usernames_or_user_ids)
         users = (cls.user_info(i) for i in usernames_or_user_ids)
-        return UserStream([users, ])
+        return UserStream([users])
 
 
 def _to_int(val, default=None) -> Union[int, None]:
@@ -215,7 +215,7 @@ _hashtag_re = re.compile("(?:^|\s)[＃#]{1}(\w+)", re.UNICODE)
 _mention_re = re.compile("(?:^|\s)[＠@]{1}([^\s#<>[\]|{}]+)", re.UNICODE)
 
 
-def _get_matches(text: str, pattern) -> List[str]:
+def _get_matches(text: str, pattern) -> Sequence[str]:
     """
     Returns sorted list of unique lower-cased items that match the regex
     :param text: any text
@@ -228,12 +228,13 @@ def _get_matches(text: str, pattern) -> List[str]:
     except TypeError:
         # https://stackoverflow.com/questions/43727583/expected-string-or-bytes-like-object
         matches = set()
-    return sorted(matches)  # sorted so that equality matching works when updating???
+    # sorted so that equality matching works when updating???
+    return tuple(sorted(matches))
 
 
-def _get_hashtags(text: str) -> List[str]:
+def _get_hashtags(text: str) -> Sequence[str]:
     return _get_matches(text, _hashtag_re)
 
 
-def _get_mentions(text: str) -> List[str]:
+def _get_mentions(text: str) -> Sequence[str]:
     return _get_matches(text, _mention_re)

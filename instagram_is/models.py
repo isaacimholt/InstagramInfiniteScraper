@@ -1,4 +1,4 @@
-from typing import NamedTuple, List, Dict
+from typing import NamedTuple, Dict, Sequence
 
 import pendulum
 
@@ -15,8 +15,8 @@ class InstagramPostThumb(NamedTuple):
     img_width: int
     img_url: str
     is_video: bool
-    hashtags: List[str]
-    mentions: List[str]
+    hashtags: Sequence[str]
+    mentions: Sequence[str]
 
     @property
     def simple_str(self):
@@ -42,9 +42,9 @@ class InstagramPost(NamedTuple):
     owner_full_name: str
     is_ad: bool
     caption: str
-    users_in_photo: List[Dict[str, str]]
-    hashtags: List[str]
-    mentions: List[str]
+    users_in_photo: Sequence[Dict[str, str]]
+    hashtags: Sequence[str]
+    mentions: Sequence[str]
 
 
 class InstagramUser(NamedTuple):
