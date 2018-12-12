@@ -142,7 +142,7 @@ class InstagramIS:
         return PostStream(cls.post_info(shortcode) for shortcode in shortcodes)
 
     @classmethod
-    def user_info(cls, username_or_user_id: str) -> InstagramUser:
+    def user_info(cls, username_or_user_id: Union[str, int]) -> InstagramUser:
 
         # todo: username <-> user_id bidict cache
 
@@ -178,7 +178,8 @@ class InstagramIS:
             cls, *usernames_or_user_ids: Union[int, str, Iterator[Union[int, str]]]
     ) -> Iterator[InstagramUser]:
         usernames_or_user_ids = collapse(usernames_or_user_ids)
-        return UserStream(cls.user_info(i) for i in usernames_or_user_ids)
+        users = (cls.user_info(i) for i in usernames_or_user_ids)
+        return UserStream([users, ])
 
 
 def _to_int(val, default=None) -> Union[int, None]:

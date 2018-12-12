@@ -31,12 +31,12 @@ class StreamMuxer:
 
 
 class BaseStream(ABCIterator):
-    def __init__(self, streams, log_progress=1000):
+    def __init__(self, feeds, log_progress=1000):
 
         # why _stream & _stream_muxer?
         # some operations work on individual streams, instead of the chained version
         # these operations must be allowed to be applied at any time before iteration
-        self._stream_muxer = StreamMuxer(streams)
+        self._stream_muxer = StreamMuxer(feeds)
         self._stream = self._stream_muxer
 
         self.log_progress = log_progress

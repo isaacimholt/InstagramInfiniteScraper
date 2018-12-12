@@ -21,7 +21,7 @@ top_posts = instagram_is\
     .unique()\
     .to_list(sort='like_count')[:5]
 
-top_users = [p.owner_num_id for p in top_posts]
+top_users = (p.owner_num_id for p in top_posts)
 
 instagram_is\
     .user_stream(top_users)\
