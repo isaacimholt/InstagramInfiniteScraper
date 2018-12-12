@@ -47,31 +47,29 @@ class InstagramIS:
     def tag_feed(cls, *tags: Union[str, Iterator[str]]) -> Iterator[InstagramPostThumb]:
 
         tags = collapse(tags)
-        params = ({
-            'tag':   t,
-            'count': 50
-        } for t in tags)
-        media_path = ('data', 'hashtag', 'edge_hashtag_to_media')
-        feeds = (cls._paginate_thumb_feed('tag_feed', p, media_path) for p in params)
+        params = ({"tag": t, "count": 50} for t in tags)
+        media_path = ("data", "hashtag", "edge_hashtag_to_media")
+        feeds = (cls._paginate_thumb_feed("tag_feed", p, media_path) for p in params)
         return ThumbStream(feeds)
 
     @classmethod
-    def location_feed(cls, *location_ids: Union[int, str, Iterator[Union[int, str]]]) \
-            -> Iterator[InstagramPostThumb]:
+    def location_feed(
+            cls, *location_ids: Union[int, str, Iterator[Union[int, str]]]
+    ) -> Iterator[InstagramPostThumb]:
 
         location_ids = collapse(location_ids)
         location_ids = (_to_int(i) for i in location_ids)
-        params = ({
-            'location_id': i,
-            'count':       50
-        } for i in location_ids)
-        media_path = ('data', 'location', 'edge_location_to_media')
-        feeds = (cls._paginate_thumb_feed('location_feed', p, media_path) for p in params)
+        params = ({"location_id": i, "count": 50} for i in location_ids)
+        media_path = ("data", "location", "edge_location_to_media")
+        feeds = (
+            cls._paginate_thumb_feed("location_feed", p, media_path) for p in params
+        )
         return ThumbStream(feeds)
 
     @classmethod
-    def user_feed(cls, *user_ids_or_usernames: Union[int, str, Iterator[Union[int, str]]]) \
-            -> Iterator[InstagramPostThumb]:
+    def user_feed(
+            cls, *user_ids_or_usernames: Union[int, str, Iterator[Union[int, str]]]
+    ) -> Iterator[InstagramPostThumb]:
         # todo: better return type e.g. ThumbStream[InstagramPostThumb]
         """
 
@@ -79,22 +77,25 @@ class InstagramIS:
         :return:
         """
         user_ids_or_usernames = collapse(user_ids_or_usernames)
-        user_ids = (_to_int(i) or cls.user_info(i).user_id for i in user_ids_or_usernames)
-        params = ({
-            'user_id': i,
-            'extract': False,  # True removes data like cursor
-            'count':   50,
-        } for i in user_ids)
-        media_path = ('data', 'user', 'edge_owner_to_timeline_media')
-        feeds = (cls._paginate_thumb_feed('user_feed', p, media_path) for p in params)
+        user_ids = (
+            _to_int(i) or cls.user_info(i).user_id for i in user_ids_or_usernames
+        )
+        params = (
+            {
+                "user_id": i,
+                "extract": False,  # True removes data like cursor
+                "count":   50,
+            }
+            for i in user_ids
+        )
+        media_path = ("data", "user", "edge_owner_to_timeline_media")
+        feeds = (cls._paginate_thumb_feed("user_feed", p, media_path) for p in params)
         return ThumbStream(feeds)
 
     @classmethod
-    def _paginate_thumb_feed(cls,
-                             feed_name: str,
-                             feed_kwargs: dict,
-                             media_path: Iterator[str]) \
-            -> Iterator[InstagramPostThumb]:
+    def _paginate_thumb_feed(
+            cls, feed_name: str, feed_kwargs: dict, media_path: Iterator[str]
+    ) -> Iterator[InstagramPostThumb]:
         web_api = cls._get_web_api_client()
         has_next_page = True
         end_cursor = None
@@ -169,12 +170,13 @@ class InstagramIS:
             profile_pic_url=d.profile_pic_url or None,
             username=d.username or None,
             connected_fb_page=d.connected_fb_page or None,
-            media_count=_to_int(d.counts.media)
+            media_count=_to_int(d.counts.media),
         )
 
     @classmethod
-    def user_stream(cls, *usernames_or_user_ids: Union[int, str, Iterator[Union[int, str]]]) \
-            -> Iterator[InstagramUser]:
+    def user_stream(
+            cls, *usernames_or_user_ids: Union[int, str, Iterator[Union[int, str]]]
+    ) -> Iterator[InstagramUser]:
         usernames_or_user_ids = collapse(usernames_or_user_ids)
         return UserStream(cls.user_info(i) for i in usernames_or_user_ids)
 
@@ -202,9 +204,9 @@ def _timestamp_to_datetime(val, default=None) -> Union[pendulum.datetime, None]:
 
 def _get_caption(data):
     try:
-        return data.edge_media_to_caption.edges[0].node.text or ''
+        return data.edge_media_to_caption.edges[0].node.text or ""
     except IndexError:
-        return ''
+        return ""
 
 
 # https://gist.github.com/mahmoud/237eb20108b5805aed5f
