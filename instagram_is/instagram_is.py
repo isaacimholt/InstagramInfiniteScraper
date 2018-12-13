@@ -17,17 +17,10 @@ from .streams import ThumbStream, UserStream, PostStream
 
 
 class InstagramIS:
-    __web_api_client = None
-
-    @classmethod
-    def _get_web_api_client(cls):
-        """
-        Prevent multiple instances of web api client
-        """
-        if cls.__web_api_client is None:
-            # todo: cookies etc? See instagram private api readme for details
-            cls.__web_api_client = CustomWebApiClient(auto_patch=True)
-        return cls.__web_api_client
+    def __init__(self, *args, **kwargs):
+        params = dict(auto_patch=True)
+        params.update(kwargs)
+        self._web_api_client = CustomWebApiClient(*args, **params)
 
     @classmethod
     def _node_to_post_thumb(cls, data: dict) -> InstagramPostThumb:
@@ -49,18 +42,35 @@ class InstagramIS:
             mentions=_get_mentions(caption),
         )
 
-    @classmethod
-    def tag_feed(cls, *tags: Union[str, Iterator[str]]) -> Iterator[InstagramPostThumb]:
+    def _paginate_thumb_feed(
+        self, feed_name: str, feed_kwargs: dict, media_path: Iterator[str]
+    ) -> Iterator[InstagramPostThumb]:
+        has_next_page = True
+        end_cursor = None
+        while has_next_page:
+            r = getattr(self._web_api_client, feed_name)(
+                **feed_kwargs, end_cursor=end_cursor
+            )
+            media = Addict(r)
+            for p in media_path:
+                media = media[p]
+            has_next_page = media.page_info.has_next_page
+            end_cursor = media.page_info.end_cursor
+            for edge in media.edges:
+                yield self._node_to_post_thumb(edge.node)
+
+    def tag_feed(
+        self, *tags: Union[str, Iterator[str]]
+    ) -> Iterator[InstagramPostThumb]:
 
         tags = collapse(tags)
         params = ({"tag": t, "count": 50} for t in tags)
         media_path = ("data", "hashtag", "edge_hashtag_to_media")
-        feeds = (cls._paginate_thumb_feed("tag_feed", p, media_path) for p in params)
+        feeds = (self._paginate_thumb_feed("tag_feed", p, media_path) for p in params)
         return ThumbStream(*feeds)
 
-    @classmethod
     def location_feed(
-        cls, *location_ids: Union[int, str, Iterator[Union[int, str]]]
+        self, *location_ids: Union[int, str, Iterator[Union[int, str]]]
     ) -> Iterator[InstagramPostThumb]:
 
         location_ids = collapse(location_ids)
@@ -68,13 +78,12 @@ class InstagramIS:
         params = ({"location_id": i, "count": 50} for i in location_ids)
         media_path = ("data", "location", "edge_location_to_media")
         feeds = (
-            cls._paginate_thumb_feed("location_feed", p, media_path) for p in params
+            self._paginate_thumb_feed("location_feed", p, media_path) for p in params
         )
         return ThumbStream(*feeds)
 
-    @classmethod
     def user_feed(
-        cls, *user_ids_or_usernames: Union[int, str, Iterator[Union[int, str]]]
+        self, *user_ids_or_usernames: Union[int, str, Iterator[Union[int, str]]]
     ) -> Iterator[InstagramPostThumb]:
         # todo: better return type e.g. ThumbStream[InstagramPostThumb]
         """
@@ -84,7 +93,7 @@ class InstagramIS:
         """
         user_ids_or_usernames = collapse(user_ids_or_usernames)
         user_ids = (
-            _to_int(i) or cls.user_info(i).user_id for i in user_ids_or_usernames
+            _to_int(i) or self.user_info(i).user_id for i in user_ids_or_usernames
         )
         params = (
             {
@@ -95,33 +104,15 @@ class InstagramIS:
             for i in user_ids
         )
         media_path = ("data", "user", "edge_owner_to_timeline_media")
-        feeds = (cls._paginate_thumb_feed("user_feed", p, media_path) for p in params)
+        feeds = (self._paginate_thumb_feed("user_feed", p, media_path) for p in params)
         return ThumbStream(*feeds)
 
-    @classmethod
-    def _paginate_thumb_feed(
-        cls, feed_name: str, feed_kwargs: dict, media_path: Iterator[str]
-    ) -> Iterator[InstagramPostThumb]:
-        web_api = cls._get_web_api_client()
-        has_next_page = True
-        end_cursor = None
-        while has_next_page:
-            r = getattr(web_api, feed_name)(**feed_kwargs, end_cursor=end_cursor)
-            media = Addict(r)
-            for p in media_path:
-                media = media[p]
-            has_next_page = media.page_info.has_next_page
-            end_cursor = media.page_info.end_cursor
-            for edge in media.edges:
-                yield cls._node_to_post_thumb(edge.node)
-
-    @classmethod
-    def post_info(cls, shortcode_or_model: Union[str, InstagramPost]) -> InstagramPost:
+    def post_info(self, shortcode_or_model: Union[str, InstagramPost]) -> InstagramPost:
         if isinstance(shortcode_or_model, InstagramPost):
             return shortcode_or_model
         shortcode = shortcode_or_model
-        web_api = cls._get_web_api_client()
-        d = Addict(web_api.media_info2(shortcode))
+
+        d = Addict(self._web_api_client.media_info2(shortcode))
         return InstagramPost(
             post_num_id=d.id or None,  # todo: this is actually a str
             shortcode=d.shortcode or None,
@@ -146,9 +137,8 @@ class InstagramIS:
             mentions=_get_mentions(d.caption.text),
         )
 
-    @classmethod
     def user_info(
-        cls, username_or_user_id_or_model: Union[str, int, InstagramUser]
+        self, username_or_user_id_or_model: Union[str, int, InstagramUser]
     ) -> InstagramUser:
         """
 
@@ -166,14 +156,13 @@ class InstagramIS:
             or username_or_user_id_or_model.isdigit()
         ):
             user_id = _to_int(username_or_user_id_or_model)
-            first_thumb = cls.user_feed(user_id).limit(1).to_list()[0]
-            first_post = cls.post_info(first_thumb.shortcode)
+            first_thumb = self.user_feed(user_id).limit(1).to_list()[0]
+            first_post = self.post_info(first_thumb.shortcode)
             username_or_user_id_or_model = first_post.owner_username
 
         username = username_or_user_id_or_model
 
-        web_api = cls._get_web_api_client()
-        d = Addict(web_api.user_info2(user_name=username))
+        d = Addict(self._web_api_client.user_info2(user_name=username))
         return InstagramUser(
             biography=d.biography or None,
             website=d.website or None,
@@ -191,9 +180,8 @@ class InstagramIS:
             media_count=_to_int(d.counts.media),
         )
 
-    @classmethod
     def user_stream(
-        cls,
+        self,
         *usernames_or_user_ids_or_models: Union[
             int, str, InstagramUser, Iterator[Union[int, str, InstagramUser]]
         ]
@@ -201,14 +189,13 @@ class InstagramIS:
         usernames_or_user_ids_or_models = collapse(
             usernames_or_user_ids_or_models, base_type=InstagramUser
         )
-        return UserStream(cls.user_info(i) for i in usernames_or_user_ids_or_models)
+        return UserStream(self.user_info(i) for i in usernames_or_user_ids_or_models)
 
-    @classmethod
     def post_stream(
-        cls,
+        self,
         *shortcodes_or_models: Union[
             int, str, InstagramPost, Iterator[Union[int, str, InstagramPost]]
         ]
     ) -> Iterator[InstagramPost]:
         shortcodes_or_models = collapse(shortcodes_or_models, base_type=InstagramPost)
-        return PostStream(cls.post_info(s) for s in shortcodes_or_models)
+        return PostStream(self.post_info(s) for s in shortcodes_or_models)

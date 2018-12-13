@@ -206,6 +206,6 @@ class CommentStream(BaseStream):
         return next(super())
 
     def to_csv(
-            self, file_name: str, header_row: Sequence[str] = InstagramComment._fields
+        self, file_name: str, header_row: Sequence[str] = InstagramComment._fields
     ) -> None:
         return self._save_csv(self._stream, file_name, header_row)

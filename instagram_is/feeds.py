@@ -99,31 +99,29 @@ class WebApiClient:
         )
 
     @classmethod
-    def user_info(
-        cls, username_or_user_id_or_model: Union[str, int, InstagramUser]
-    ) -> InstagramUser:
+    def user_info(cls, username_or_user_id: Union[str, int]) -> InstagramUser:
         """
 
-        :param username_or_user_id_or_model: Prefer username (fewer gets)
+        :param username_or_user_id: Prefer username (fewer gets)
         :return:
         """
 
         # todo: username <-> user_id bidict cache
 
-        if isinstance(username_or_user_id_or_model, InstagramUser):
-            return username_or_user_id_or_model
+        if isinstance(username_or_user_id, InstagramUser):
+            return username_or_user_id
 
-        if (
-            not isinstance(username_or_user_id_or_model, str)
-            or username_or_user_id_or_model.isdigit()
-        ):
+        if not isinstance(username_or_user_id, str) or username_or_user_id.isdigit():
             # todo
-            user_id = _to_int(username_or_user_id_or_model)
+            raise NotImplemented
+            # input is a user_id, and we have to
+            user_id = _to_int(username_or_user_id)
+            # potential problem if user has no posts, how can we get username?
             first_thumb = cls.user_feed(user_id).limit(1).to_list()[0]
             first_post = cls.post_info(first_thumb.shortcode)
-            username_or_user_id_or_model = first_post.owner_username
+            username_or_user_id = first_post.owner_username
 
-        username = username_or_user_id_or_model
+        username = username_or_user_id
 
         web_api = cls._get_web_api_client()
         d = Addict(web_api.user_info2(user_name=username))
@@ -163,16 +161,16 @@ class LocationFeed(abc.Iterator):
 class UserFeed(abc.Iterator):
     # todo
     def __next__(self) -> InstagramPostThumb:
-        pass
+        raise NotImplemented
 
 
 class TagFeed(abc.Iterator):
     # todo
     def __next__(self) -> InstagramPostThumb:
-        pass
+        raise NotImplemented
 
 
 class SearchFeed(abc.Iterator):
     # todo
     def __next__(self) -> InstagramPostThumb:
-        pass
+        raise NotImplemented
