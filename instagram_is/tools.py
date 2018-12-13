@@ -103,11 +103,3 @@ def _get_hashtags(text: str) -> Sequence[str]:
 
 def _get_mentions(text: str) -> Sequence[str]:
     return _get_matches(text, _mention_re)
-
-
-
-
-
-
-
-

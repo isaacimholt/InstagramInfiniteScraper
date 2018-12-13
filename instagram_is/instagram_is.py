@@ -291,6 +291,7 @@ class InstagramIS:
         :return:
         """
         raise NotImplementedError
+
     def likers(self) -> Iterator[str]:
         """
         Who liked this post
