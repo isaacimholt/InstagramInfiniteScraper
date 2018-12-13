@@ -18,12 +18,14 @@ locations = [
 top_posts = instagram_is\
     .location_feed(locations)\
     .date_range(after, before)\
-    .top(5, 'like_count', unique=True)
+    .top(10, 'engagement', unique=True)\
+    .to_list(sort='created_at')
 
-top_users = (p.owner_num_id for p in top_posts)
+top_users = [p.owner_num_id for p in top_posts]
 
 instagram_is\
     .user_stream(top_users)\
+    .top(5, 'followed_by_count', unique=True)\
     .to_csv('top_influencers.csv')
 
 instagram_is\

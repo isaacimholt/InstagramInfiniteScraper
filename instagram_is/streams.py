@@ -60,9 +60,9 @@ class BaseStream(ABCIterator):
         self._stream = unique_everseen(self._stream)
         return self
 
-    def to_list(self, sort: Optional[str] = None) -> List:
+    def to_list(self, sort: Optional[str] = None, reverse=True) -> List:
         if sort:
-            return sorted(self._stream, key=attrgetter(sort), reverse=True)
+            return sorted(self._stream, key=attrgetter(sort), reverse=reverse)
         return list(self._stream)
 
     def to_set(self) -> Set:
@@ -103,8 +103,9 @@ class BaseStream(ABCIterator):
 
     def date_range(
         self,
-        after: Optional[Union[int, str, datetime, pendulum.datetime]],
-        before: Optional[Union[int, str, datetime, pendulum.datetime]],
+        after: Union[int, str, datetime, pendulum.datetime],
+        before: Union[int, str, datetime, pendulum.datetime],
+        attr: str = "created_at",
         max_tail_skip: Optional[int] = 50,
     ) -> BaseStream:
         """
@@ -114,12 +115,13 @@ class BaseStream(ABCIterator):
 
         :param after: created; further back in time (smaller datetime)
         :param before: created; more recent (larger datetime)
+        :param attr:
         :param max_tail_skip:
         :return:
         """
 
         return self.filter_range(
-            attr="created_at",
+            attr=attr,
             gte=_get_datetime(after),
             lte=_get_datetime(before),
             max_tail_skip=max_tail_skip,
@@ -130,8 +132,8 @@ class BaseStream(ABCIterator):
         stream: Iterator[Any], predicate: Callable, max_tail_skip: Optional[int] = 50
     ):
         """
-        Ignore items from stream until predicate is true, then yield items until predicate is
-        false, at which point the stream is exited.
+        Ignore items from stream until predicate is true, then yield items until predicate
+        is false, at which point the stream is exited.
         :param stream: stream of items to filter
         :param predicate:
         :return: elements of the stream
@@ -168,7 +170,7 @@ def sort_n(
     key: Optional[Callable] = None,
     reverse: bool = False,
     unique: bool = True,
-) -> Iterator[Any]:
+) -> Sequence[Any]:
     """
     Sort a stream. Processes the whole stream, but loads only num*2 elements in memory.
     :param stream:

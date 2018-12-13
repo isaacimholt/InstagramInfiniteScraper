@@ -20,7 +20,12 @@ class InstagramPostThumb(NamedTuple):
 
     @property
     def simple_str(self):
-        return f"{self.shortcode} {self.created_at.to_datetime_string()} {self.caption[:30]}"
+        d = self.created_at.to_datetime_string()
+        return f"{self.shortcode} {d} {self.caption[:30]}"
+
+    @property
+    def engagement(self):
+        return self.like_count + self.comment_count
 
 
 class InstagramPost(NamedTuple):
@@ -45,6 +50,15 @@ class InstagramPost(NamedTuple):
     users_in_photo: Sequence[Dict[str, str]]
     hashtags: Sequence[str]
     mentions: Sequence[str]
+
+    @property
+    def simple_str(self):
+        d = self.created_at.to_datetime_string()
+        return f"{self.shortcode} {d} {self.caption[:30]}"
+
+    @property
+    def engagement(self):
+        return self.like_count + self.comment_count
 
 
 class InstagramUser(NamedTuple):
