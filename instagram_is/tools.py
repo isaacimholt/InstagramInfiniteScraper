@@ -1,18 +1,9 @@
 import re
-from collections import abc
 from datetime import datetime
 from typing import Iterator, Any, Optional, Callable, Sequence, Union
 
 import pendulum
 from more_itertools import take
-
-from instagram_is.feeds import WebApiClient
-from instagram_is.models import (
-    InstagramUser,
-    InstagramPost,
-    InstagramPostThumb,
-    InstagramComment,
-)
 
 
 # todo: move more functions from stream to here
@@ -114,78 +105,9 @@ def _get_mentions(text: str) -> Sequence[str]:
     return _get_matches(text, _mention_re)
 
 
-class Comments(abc.Iterator):
-    # todo
-    # input a list of posts
-    def __next__(self) -> InstagramComment:
-        raise NotImplemented
 
 
-class Users(abc.Iterator):
-    @staticmethod
-    def get(
-        u: Union[
-            int, str, InstagramUser, InstagramPost, InstagramPostThumb, InstagramComment
-        ]
-    ) -> InstagramUser:
-        # Be conservative in what you do, be liberal in what you accept
-        if isinstance(u, InstagramUser):
-            return u
-        if isinstance(u, InstagramPost):
-            return WebApiClient.user_info(u.owner_username)
-        if isinstance(u, InstagramPostThumb):
-            return WebApiClient.user_info(u.owner_num_id)
-        if isinstance(u, InstagramComment):
-            # todo
-            raise NotImplemented
-        return WebApiClient.user_info(u)
-
-    def __next__(self) -> InstagramUser:
-        # todo
-        raise NotImplemented
 
 
-class Posts(abc.Iterator):
-    @staticmethod
-    def get(
-        p: Union[int, str, InstagramPost, InstagramPostThumb, InstagramComment]
-    ) -> InstagramPost:
-        # Be conservative in what you do, be liberal in what you accept
-        if isinstance(p, InstagramPost):
-            return p
-        if isinstance(p, InstagramPostThumb):
-            return WebApiClient.post_info(p.shortcode)
-        if isinstance(p, InstagramComment):
-            # todo
-            raise NotImplemented
-        return WebApiClient.post_info(p)
-
-    def __next__(self) -> InstagramPost:
-        # todo
-        raise NotImplemented
 
 
-class FollowedBy(abc.Iterator):
-    """
-    Who is following this user
-    """
-
-    # todo
-    def __next__(self) -> None:
-        raise NotImplemented
-
-
-class Following(abc.Iterator):
-    """
-    Who is this user following
-    """
-
-    # todo
-    def __next__(self) -> None:
-        raise NotImplemented
-
-
-class Likers(abc.Iterator):
-    # todo
-    def __next__(self) -> None:
-        pass

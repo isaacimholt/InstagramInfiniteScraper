@@ -11,7 +11,7 @@ from instagram_is.tools import (
     _get_hashtags,
     _get_mentions,
 )
-from .models import InstagramPostThumb, InstagramUser, InstagramPost
+from .models import InstagramPostThumb, InstagramUser, InstagramPost, InstagramComment
 from .patches import CustomWebApiClient
 from .streams import ThumbStream, UserStream, PostStream
 
@@ -93,7 +93,7 @@ class InstagramIS:
         """
         user_ids_or_usernames = collapse(user_ids_or_usernames)
         user_ids = (
-            _to_int(i) or self.user_info(i).user_id for i in user_ids_or_usernames
+            _to_int(i) or self._user_info(i).user_id for i in user_ids_or_usernames
         )
         params = (
             {
@@ -107,7 +107,17 @@ class InstagramIS:
         feeds = (self._paginate_thumb_feed("user_feed", p, media_path) for p in params)
         return ThumbStream(*feeds)
 
-    def post_info(self, shortcode_or_model: Union[str, InstagramPost]) -> InstagramPost:
+    def search_feed(self):
+        # todo
+        raise NotImplementedError
+
+    def comment_feed(self):
+        # todo
+        raise NotImplementedError
+
+    def _post_info(
+        self, shortcode_or_model: Union[str, InstagramPost]
+    ) -> InstagramPost:
         if isinstance(shortcode_or_model, InstagramPost):
             return shortcode_or_model
         shortcode = shortcode_or_model
@@ -137,30 +147,25 @@ class InstagramIS:
             mentions=_get_mentions(d.caption.text),
         )
 
-    def user_info(
-        self, username_or_user_id_or_model: Union[str, int, InstagramUser]
-    ) -> InstagramUser:
+    def _user_info(self, u: Union[str, int]) -> InstagramUser:
         """
 
-        :param username_or_user_id_or_model: Prefer username (fewer gets)
+        :param u: Prefer username (fewer gets)
         :return:
         """
 
         # todo: username <-> user_id bidict cache
 
-        if isinstance(username_or_user_id_or_model, InstagramUser):
-            return username_or_user_id_or_model
-
-        if (
-            not isinstance(username_or_user_id_or_model, str)
-            or username_or_user_id_or_model.isdigit()
-        ):
-            user_id = _to_int(username_or_user_id_or_model)
+        if not isinstance(u, str) or u.isdigit():
+            # input is a user_id, and we have to
+            user_id = _to_int(u)
+            # todo: potential problem if user has no posts, how can we get username?
+            user_id = _to_int(u)
             first_thumb = self.user_feed(user_id).limit(1).to_list()[0]
-            first_post = self.post_info(first_thumb.shortcode)
-            username_or_user_id_or_model = first_post.owner_username
+            first_post = self._post_info(first_thumb.shortcode)
+            u = first_post.owner_username
 
-        username = username_or_user_id_or_model
+        username = u
 
         d = Addict(self._web_api_client.user_info2(user_name=username))
         return InstagramUser(
@@ -180,22 +185,115 @@ class InstagramIS:
             media_count=_to_int(d.counts.media),
         )
 
-    def user_stream(
+    def user(
         self,
-        *usernames_or_user_ids_or_models: Union[
-            int, str, InstagramUser, Iterator[Union[int, str, InstagramUser]]
-        ]
-    ) -> Iterator[InstagramUser]:
-        usernames_or_user_ids_or_models = collapse(
-            usernames_or_user_ids_or_models, base_type=InstagramUser
-        )
-        return UserStream(self.user_info(i) for i in usernames_or_user_ids_or_models)
+        u: Union[
+            int, str, InstagramUser, InstagramPost, InstagramPostThumb, InstagramComment
+        ],
+    ) -> InstagramUser:
+        """
+        Return a user's data
+        :param u: username, user_id, various models, etc
+        :return: data about a single user
+        """
 
-    def post_stream(
+        # Be conservative in what you do, be liberal in what you accept
+        if isinstance(u, InstagramUser):
+            return u
+        if isinstance(u, InstagramPost):
+            return self._user_info(u.owner_username)
+        if isinstance(u, InstagramPostThumb):
+            return self._user_info(u.owner_num_id)
+        if isinstance(u, InstagramComment):
+            # todo
+            raise NotImplementedError
+        return self._user_info(u)
+
+    def users(
         self,
-        *shortcodes_or_models: Union[
-            int, str, InstagramPost, Iterator[Union[int, str, InstagramPost]]
+        *u: Union[int, str, InstagramUser, Iterator[Union[int, str, InstagramUser]]]
+    ) -> Iterator[InstagramUser]:
+        """
+        Return a stream of user data from a stream of users
+        :param u: usernames, user_ids, various models, Iterators, etc
+        :return: a stream of data about the input users
+        """
+        u = collapse(u, base_type=InstagramUser)
+        return UserStream(self.user(i) for i in u)
+
+    def post(
+        self, p: Union[int, str, InstagramPost, InstagramPostThumb, InstagramComment]
+    ) -> InstagramPost:
+        """
+        Return a post's data
+        :param p: post shortcode, post_id, various models, etc
+        :return: data about a single post
+        """
+
+        # Be conservative in what you do, be liberal in what you accept
+        if isinstance(p, InstagramPost):
+            return p
+        if isinstance(p, InstagramPostThumb):
+            return self._post_info(p.shortcode)
+        if isinstance(p, InstagramComment):
+            # todo
+            raise NotImplemented
+        return self._post_info(p)
+
+    def posts(
+        self,
+        *p: Union[
+            int,
+            str,
+            InstagramPost,
+            InstagramPostThumb,
+            InstagramComment,
+            Iterator[
+                Union[int, str, InstagramPost, InstagramPostThumb, InstagramComment]
+            ],
         ]
     ) -> Iterator[InstagramPost]:
-        shortcodes_or_models = collapse(shortcodes_or_models, base_type=InstagramPost)
-        return PostStream(self.post_info(s) for s in shortcodes_or_models)
+        """
+        Return a stream of post data from a stream of posts
+        :param p: post shortcodes, post_ids, various models, Iterators, etc
+        :return: a stream of data about the input posts
+        """
+        p = collapse(p, base_type=InstagramPost)
+        return PostStream(self.post(s) for s in p)
+
+    def comments(
+        self,
+        *c: Union[
+            int,
+            str,
+            InstagramPost,
+            InstagramPostThumb,
+            InstagramComment,
+            Iterator[
+                Union[int, str, InstagramPost, InstagramPostThumb, InstagramComment]
+            ],
+        ]
+    ) -> Iterator[InstagramComment]:
+        c = collapse(c, base_type=InstagramComment)
+        # todo: logic to get comments from a post/post-like obj
+        raise NotImplementedError
+
+    def followed_by(self) -> Iterator[str]:
+        """
+        Who is following this user
+        :return:
+        """
+        raise NotImplementedError
+
+    def following(self) -> Iterator[str]:
+        """
+        Who is this user following
+        :return:
+        """
+        raise NotImplementedError
+    def likers(self) -> Iterator[str]:
+        """
+        Who liked this post
+        :return:
+        """
+        raise NotImplementedError
