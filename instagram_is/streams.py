@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 import csv
-from abc import ABC
 from collections import abc
 from datetime import datetime
 from functools import partial
 from itertools import dropwhile, islice, chain
 from operator import attrgetter
-from typing import Callable, Iterator, Any, List, Optional, Sequence, Set, Union
+from typing import (
+    Callable,
+    Iterator,
+    Any,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Union,
+    TypeVar,
+    NamedTuple,
+)
 
 import pendulum
 from more_itertools import unique_everseen
@@ -15,7 +25,7 @@ from more_itertools import unique_everseen
 from instagram_is.tools import sort_n, _get_datetime
 from .models import InstagramPostThumb, InstagramPost, InstagramUser, InstagramComment
 
-ANY_MODEL = Union[InstagramPostThumb, InstagramPost, InstagramUser]
+ANY_MODEL = Union[InstagramPostThumb, InstagramPost, InstagramUser, InstagramComment]
 
 
 class StreamMuxer(abc.Iterator):
@@ -37,8 +47,19 @@ class StreamMuxer(abc.Iterator):
         self._streams = map(fxn, self._streams)
 
 
-class BaseStream(abc.Iterator, ABC):
-    def __init__(self, *feeds: Iterator[ANY_MODEL], log_progress=100):
+T = TypeVar("T")
+
+
+class GenericStream(Iterator[T]):
+    def __next__(self) -> T:
+        return next(self)
+
+    def map(self, fxn: Callable):
+        return GenericStream(map(fxn, self))
+
+
+class NamedTupleStream(GenericStream[NamedTuple]):
+    def __init__(self, *feeds: Iterator[NamedTuple], log_progress=100):
 
         # why _stream & _stream_muxer?
         # some operations work on individual streams, instead of the chained version
@@ -48,18 +69,19 @@ class BaseStream(abc.Iterator, ABC):
 
         self.log_progress = log_progress
 
-    def __iter__(self) -> Iterator[ANY_MODEL]:
+    def __iter__(self) -> Iterator[NamedTuple]:
+        # todo: move into generic stream
         for i, e in enumerate(self._stream, 1):
             if self.log_progress and i % self.log_progress == 0:
                 print(f"Streamed {i} elements.")
             yield e
 
-    def limit(self, max_results: int) -> BaseStream:
-        # must combine streams to apply limit
+    def limit(self, max_results: int) -> NamedTupleStream:
+        # todo: move into generic stream
         self._stream = islice(self._stream, max_results)
         return self
 
-    def unique(self) -> BaseStream:
+    def unique(self) -> NamedTupleStream:
         """
         Must keep elements in memory to determine uniqueness
         :return:
@@ -73,18 +95,20 @@ class BaseStream(abc.Iterator, ABC):
         return list(self._stream)
 
     def to_set(self) -> Set:
+        # todo: move into generic stream
         return set(self._stream)
 
-    def top(self, num: int, attr: str, unique: bool = True) -> BaseStream:
+    def top(self, num: int, attr: str, unique: bool = True) -> NamedTupleStream:
         self._stream = sort_n(
             self._stream, num=num, key=attrgetter(attr), reverse=True, unique=unique
         )
+        # todo: move into generic stream
         return self
 
     def filter(
         self, predicate: Callable, max_tail_skip: Optional[int] = None
-    ) -> BaseStream:
-
+    ) -> NamedTupleStream:
+        # todo: move into generic stream
         filter_partial = partial(
             self._filter, predicate=predicate, max_tail_skip=max_tail_skip
         )
@@ -99,6 +123,7 @@ class BaseStream(abc.Iterator, ABC):
         lte: Optional[Any] = None,
         max_tail_skip: Optional[int] = None,
     ):
+        # todo: possibly delete
         def filter_predicate(e: Any) -> bool:
             if gte is not None and getattr(e, attr) < gte:
                 return False
@@ -108,13 +133,13 @@ class BaseStream(abc.Iterator, ABC):
 
         return self.filter(predicate=filter_predicate, max_tail_skip=max_tail_skip)
 
-    def date_range(
+    def created_range(
         self,
         after: Union[int, str, datetime, pendulum.datetime],
         before: Union[int, str, datetime, pendulum.datetime],
         attr: str = "created_at",
         max_tail_skip: Optional[int] = 50,
-    ) -> BaseStream:
+    ) -> NamedTupleStream:
         """
         Filter posts *created* in specified date range.
         Note that this may be different than instagram feed since older posts that were
@@ -145,6 +170,7 @@ class BaseStream(abc.Iterator, ABC):
         :param predicate:
         :return: elements of the stream
         """
+        # todo: move into generic stream
 
         if not max_tail_skip:
             yield from filter(predicate, stream)
@@ -162,50 +188,43 @@ class BaseStream(abc.Iterator, ABC):
             else:
                 skipped += 1
 
-    @staticmethod
-    def _save_csv(stream: Iterator, file_name: str, header_row: Sequence[str]) -> None:
+    def save_csv(
+        self, file_name: str, header_row: Optional[Sequence[str]] = None
+    ) -> NamedTupleStream:
+        # todo: move into generic stream
         with open(file_name, "w", newline="", encoding="utf-8") as csv_file:
             # using newline='' corrects empty lines
             writer = csv.writer(csv_file)
-            writer.writerow(header_row)
-            writer.writerows(stream)
 
-
-class ThumbStream(BaseStream):
-    def __next__(self) -> InstagramPostThumb:
-        return next(super())
-
-    def to_csv(
-        self, file_name: str, header_row: Sequence[str] = InstagramPostThumb._fields
-    ) -> None:
-        return self._save_csv(self._stream, file_name, header_row)
-
-
-class PostStream(BaseStream):
-    def __next__(self) -> InstagramPost:
-        return next(super())
+            for i in self:
+                if not header_row:
+                    header_row = i._fields
+                    writer.writerow(header_row)
+                writer.writerow(i)
+                yield i
 
     def to_csv(
-        self, file_name: str, header_row: Sequence[str] = InstagramPost._fields
+        self, file_name: str, header_row: Optional[Sequence[str]] = None
     ) -> None:
-        return self._save_csv(self._stream, file_name, header_row)
+        for _ in self.save_csv(file_name=file_name, header_row=header_row):
+            pass
+
+    def to_stream(self, attr: str, stream, stream_type):
+        m = map(attrgetter(attr), self)
+        return UserStream()
 
 
-class UserStream(BaseStream):
-    def __next__(self) -> InstagramUser:
-        return next(super())
-
-    def to_csv(
-        self, file_name: str, header_row: Sequence[str] = InstagramUser._fields
-    ) -> None:
-        return self._save_csv(self._stream, file_name, header_row)
+class ThumbStream(NamedTupleStream[InstagramPostThumb]):
+    pass
 
 
-class CommentStream(BaseStream):
-    def __next__(self) -> InstagramComment:
-        return next(super())
+class PostStream(NamedTupleStream[InstagramPost]):
+    pass
 
-    def to_csv(
-        self, file_name: str, header_row: Sequence[str] = InstagramComment._fields
-    ) -> None:
-        return self._save_csv(self._stream, file_name, header_row)
+
+class UserStream(NamedTupleStream[InstagramUser]):
+    pass
+
+
+class CommentStream(NamedTupleStream[InstagramComment]):
+    pass
