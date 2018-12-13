@@ -123,7 +123,7 @@ class InstagramIS:
         web_api = cls._get_web_api_client()
         d = Addict(web_api.media_info2(shortcode))
         return InstagramPost(
-            post_num_id=d.id or None,
+            post_num_id=d.id or None,  # todo: this is actually a str
             shortcode=d.shortcode or None,
             img_height=_to_int(d.dimensions.height),
             img_width=_to_int(d.dimensions.width),
@@ -150,6 +150,11 @@ class InstagramIS:
     def user_info(
         cls, username_or_user_id_or_model: Union[str, int, InstagramUser]
     ) -> InstagramUser:
+        """
+
+        :param username_or_user_id_or_model: Prefer username (fewer gets)
+        :return:
+        """
 
         # todo: username <-> user_id bidict cache
 

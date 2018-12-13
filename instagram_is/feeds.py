@@ -5,7 +5,7 @@ from addict import Dict as Addict
 from more_itertools import collapse
 
 from instagram_is.streams import ThumbStream
-from .models import InstagramPostThumb, InstagramComment, InstagramUser, InstagramPost
+from .models import InstagramPostThumb, InstagramUser, InstagramPost
 from .patches import CustomWebApiClient
 from .tools import (
     _to_int,
@@ -102,6 +102,11 @@ class WebApiClient:
     def user_info(
         cls, username_or_user_id_or_model: Union[str, int, InstagramUser]
     ) -> InstagramUser:
+        """
+
+        :param username_or_user_id_or_model: Prefer username (fewer gets)
+        :return:
+        """
 
         # todo: username <-> user_id bidict cache
 
@@ -112,6 +117,7 @@ class WebApiClient:
             not isinstance(username_or_user_id_or_model, str)
             or username_or_user_id_or_model.isdigit()
         ):
+            # todo
             user_id = _to_int(username_or_user_id_or_model)
             first_thumb = cls.user_feed(user_id).limit(1).to_list()[0]
             first_post = cls.post_info(first_thumb.shortcode)
@@ -155,31 +161,18 @@ class LocationFeed(abc.Iterator):
 
 
 class UserFeed(abc.Iterator):
+    # todo
     def __next__(self) -> InstagramPostThumb:
         pass
 
 
 class TagFeed(abc.Iterator):
+    # todo
     def __next__(self) -> InstagramPostThumb:
         pass
 
 
 class SearchFeed(abc.Iterator):
+    # todo
     def __next__(self) -> InstagramPostThumb:
-        pass
-
-
-class Comments(abc.Iterator):
-    # input a list of posts
-    def __next__(self) -> InstagramComment:
-        pass
-
-
-class Users(abc.Iterator):
-    def __next__(self) -> InstagramUser:
-        pass
-
-
-class Posts(abc.Iterator):
-    def __next__(self) -> InstagramPost:
         pass

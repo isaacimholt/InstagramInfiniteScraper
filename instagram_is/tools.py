@@ -1,9 +1,16 @@
 import re
+from collections import abc
 from datetime import datetime
 from typing import Iterator, Any, Optional, Callable, Sequence, Union
 
 import pendulum
 from more_itertools import take
+
+from instagram_is.feeds import WebApiClient
+from instagram_is.models import InstagramUser, InstagramPost, InstagramPostThumb, InstagramComment
+
+
+# todo: move more functions from stream to here
 
 
 def sort_n(
@@ -100,3 +107,48 @@ def _get_hashtags(text: str) -> Sequence[str]:
 
 def _get_mentions(text: str) -> Sequence[str]:
     return _get_matches(text, _mention_re)
+
+
+def get_user(u: Union[int, str, InstagramUser, InstagramPost, InstagramPostThumb, InstagramComment]) -> InstagramUser:
+    # Be conservative in what you do, be liberal in what you accept
+    if isinstance(u, InstagramUser):
+        return u
+    if isinstance(u, InstagramPost):
+        return WebApiClient.user_info(u.owner_username)
+    if isinstance(u, InstagramPostThumb):
+        return WebApiClient.user_info(u.owner_num_id)
+    if isinstance(u, InstagramComment):
+        # todo
+        return None
+    return WebApiClient.user_info(u)
+
+
+def get_post(p: Union[int, str, InstagramPost, InstagramPostThumb, InstagramComment]) -> InstagramPost:
+    # Be conservative in what you do, be liberal in what you accept
+    if isinstance(p, InstagramPost):
+        return p
+    if isinstance(p, InstagramPostThumb):
+        return WebApiClient.post_info(p.shortcode)
+    if isinstance(p, InstagramComment):
+        # todo
+        return None
+    return WebApiClient.post_info(p)
+
+
+class Comments(abc.Iterator):
+    # todo
+    # input a list of posts
+    def __next__(self) -> InstagramComment:
+        pass
+
+
+class Users(abc.Iterator):
+    # todo
+    def __next__(self) -> InstagramUser:
+        pass
+
+
+class Posts(abc.Iterator):
+    # todo
+    def __next__(self) -> InstagramPost:
+        pass

@@ -13,7 +13,7 @@ import pendulum
 from more_itertools import unique_everseen
 
 from instagram_is.tools import sort_n, _get_datetime
-from .models import InstagramPostThumb, InstagramPost, InstagramUser
+from .models import InstagramPostThumb, InstagramPost, InstagramUser, InstagramComment
 
 ANY_MODEL = Union[InstagramPostThumb, InstagramPost, InstagramUser]
 
@@ -197,5 +197,15 @@ class UserStream(BaseStream):
 
     def to_csv(
         self, file_name: str, header_row: Sequence[str] = InstagramUser._fields
+    ) -> None:
+        return self._save_csv(self._stream, file_name, header_row)
+
+
+class CommentStream(BaseStream):
+    def __next__(self) -> InstagramComment:
+        return next(super())
+
+    def to_csv(
+            self, file_name: str, header_row: Sequence[str] = InstagramComment._fields
     ) -> None:
         return self._save_csv(self._stream, file_name, header_row)
