@@ -1,10 +1,16 @@
-import re
-from typing import Iterator, Union, Sequence
+from typing import Iterator, Union
 
-import pendulum
 from addict import Dict as Addict
 from more_itertools import collapse
 
+from instagram_is.tools import (
+    _to_int,
+    _to_bool,
+    _timestamp_to_datetime,
+    _get_caption,
+    _get_hashtags,
+    _get_mentions,
+)
 from .models import InstagramPostThumb, InstagramUser, InstagramPost
 from .patches import CustomWebApiClient
 from .streams import ThumbStream, UserStream, PostStream
@@ -50,7 +56,7 @@ class InstagramIS:
         params = ({"tag": t, "count": 50} for t in tags)
         media_path = ("data", "hashtag", "edge_hashtag_to_media")
         feeds = (cls._paginate_thumb_feed("tag_feed", p, media_path) for p in params)
-        return ThumbStream(feeds)
+        return ThumbStream(*feeds)
 
     @classmethod
     def location_feed(
@@ -64,7 +70,7 @@ class InstagramIS:
         feeds = (
             cls._paginate_thumb_feed("location_feed", p, media_path) for p in params
         )
-        return ThumbStream(feeds)
+        return ThumbStream(*feeds)
 
     @classmethod
     def user_feed(
@@ -73,7 +79,7 @@ class InstagramIS:
         # todo: better return type e.g. ThumbStream[InstagramPostThumb]
         """
 
-        :param user_ids_or_usernames: note that passing a username will require an additional url get
+        :param user_ids_or_usernames: note: passing a username will cause more url gets
         :return:
         """
         user_ids_or_usernames = collapse(user_ids_or_usernames)
@@ -90,7 +96,7 @@ class InstagramIS:
         )
         media_path = ("data", "user", "edge_owner_to_timeline_media")
         feeds = (cls._paginate_thumb_feed("user_feed", p, media_path) for p in params)
-        return ThumbStream(feeds)
+        return ThumbStream(*feeds)
 
     @classmethod
     def _paginate_thumb_feed(
@@ -110,7 +116,10 @@ class InstagramIS:
                 yield cls._node_to_post_thumb(edge.node)
 
     @classmethod
-    def post_info(cls, shortcode: str) -> InstagramPost:
+    def post_info(cls, shortcode_or_model: Union[str, InstagramPost]) -> InstagramPost:
+        if isinstance(shortcode_or_model, InstagramPost):
+            return shortcode_or_model
+        shortcode = shortcode_or_model
         web_api = cls._get_web_api_client()
         d = Addict(web_api.media_info2(shortcode))
         return InstagramPost(
@@ -138,21 +147,25 @@ class InstagramIS:
         )
 
     @classmethod
-    def post_stream(cls, shortcodes: Iterator[str]) -> Iterator[InstagramPost]:
-        return PostStream(cls.post_info(shortcode) for shortcode in shortcodes)
-
-    @classmethod
-    def user_info(cls, username_or_user_id: Union[str, int]) -> InstagramUser:
+    def user_info(
+        cls, username_or_user_id_or_model: Union[str, int, InstagramUser]
+    ) -> InstagramUser:
 
         # todo: username <-> user_id bidict cache
 
-        if not isinstance(username_or_user_id, str) or username_or_user_id.isdigit():
-            user_id = _to_int(username_or_user_id)
+        if isinstance(username_or_user_id_or_model, InstagramUser):
+            return username_or_user_id_or_model
+
+        if (
+            not isinstance(username_or_user_id_or_model, str)
+            or username_or_user_id_or_model.isdigit()
+        ):
+            user_id = _to_int(username_or_user_id_or_model)
             first_thumb = cls.user_feed(user_id).limit(1).to_list()[0]
             first_post = cls.post_info(first_thumb.shortcode)
-            username_or_user_id = first_post.owner_username
+            username_or_user_id_or_model = first_post.owner_username
 
-        username = username_or_user_id
+        username = username_or_user_id_or_model
 
         web_api = cls._get_web_api_client()
         d = Addict(web_api.user_info2(user_name=username))
@@ -175,66 +188,22 @@ class InstagramIS:
 
     @classmethod
     def user_stream(
-        cls, *usernames_or_user_ids: Union[int, str, Iterator[Union[int, str]]]
+        cls,
+        *usernames_or_user_ids_or_models: Union[
+            int, str, InstagramUser, Iterator[Union[int, str, InstagramUser]]
+        ]
     ) -> Iterator[InstagramUser]:
-        usernames_or_user_ids = collapse(usernames_or_user_ids)
-        users = (cls.user_info(i) for i in usernames_or_user_ids)
-        return UserStream([users])
+        usernames_or_user_ids_or_models = collapse(
+            usernames_or_user_ids_or_models, base_type=InstagramUser
+        )
+        return UserStream(cls.user_info(i) for i in usernames_or_user_ids_or_models)
 
-
-def _to_int(val, default=None) -> Union[int, None]:
-    try:
-        return int(val)
-    except (ValueError, TypeError):
-        return default
-
-
-def _to_bool(val, default=None) -> Union[bool, None]:
-    try:
-        return bool(val)
-    except (ValueError, TypeError):
-        return default
-
-
-def _timestamp_to_datetime(val, default=None) -> Union[pendulum.datetime, None]:
-    try:
-        return pendulum.from_timestamp(val)
-    except (ValueError, TypeError):
-        return default
-
-
-def _get_caption(data):
-    try:
-        return data.edge_media_to_caption.edges[0].node.text or ""
-    except IndexError:
-        return ""
-
-
-# https://gist.github.com/mahmoud/237eb20108b5805aed5f
-_hashtag_re = re.compile("(?:^|\s)[＃#]{1}(\w+)", re.UNICODE)
-_mention_re = re.compile("(?:^|\s)[＠@]{1}([^\s#<>[\]|{}]+)", re.UNICODE)
-
-
-def _get_matches(text: str, pattern) -> Sequence[str]:
-    """
-    Returns sorted list of unique lower-cased items that match the regex
-    :param text: any text
-    :return: sorted list of unique lower-cased items
-    """
-    # todo: test hashtags ending with surrogate pair emojii (e.g. family, flags)
-    try:
-        # hashtags are case insensitive
-        matches = set(s.lower() for s in pattern.findall(text))
-    except TypeError:
-        # https://stackoverflow.com/questions/43727583/expected-string-or-bytes-like-object
-        matches = set()
-    # sorted so that equality matching works when updating???
-    return tuple(sorted(matches))
-
-
-def _get_hashtags(text: str) -> Sequence[str]:
-    return _get_matches(text, _hashtag_re)
-
-
-def _get_mentions(text: str) -> Sequence[str]:
-    return _get_matches(text, _mention_re)
+    @classmethod
+    def post_stream(
+        cls,
+        *shortcodes_or_models: Union[
+            int, str, InstagramPost, Iterator[Union[int, str, InstagramPost]]
+        ]
+    ) -> Iterator[InstagramPost]:
+        shortcodes_or_models = collapse(shortcodes_or_models, base_type=InstagramPost)
+        return PostStream(cls.post_info(s) for s in shortcodes_or_models)

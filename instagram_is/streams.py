@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import csv
-from collections.abc import Iterator as ABCIterator
+from abc import ABC
+from collections import abc
 from datetime import datetime
 from functools import partial
 from itertools import dropwhile, islice, chain
@@ -9,12 +10,15 @@ from operator import attrgetter
 from typing import Callable, Iterator, Any, List, Optional, Sequence, Set, Union
 
 import pendulum
-from more_itertools import unique_everseen, take
+from more_itertools import unique_everseen
 
+from instagram_is.tools import sort_n, _get_datetime
 from .models import InstagramPostThumb, InstagramPost, InstagramUser
 
+ANY_MODEL = Union[InstagramPostThumb, InstagramPost, InstagramUser]
 
-class StreamMuxer:
+
+class StreamMuxer(abc.Iterator):
     """
     Proxy object that handles applying changes to individual streams.
     Once iteration has begun, these smaller feeds are combined to act as a single stream.
@@ -23,15 +27,18 @@ class StreamMuxer:
     def __init__(self, streams):
         self._streams = streams
 
-    def __iter__(self):
+    def __next__(self) -> ANY_MODEL:
+        return next(self.__iter__())
+
+    def __iter__(self) -> Iterator[ANY_MODEL]:
         return chain.from_iterable(self._streams)
 
-    def map_streams(self, fxn: Callable):
+    def map_streams(self, fxn: Callable) -> None:
         self._streams = map(fxn, self._streams)
 
 
-class BaseStream(ABCIterator):
-    def __init__(self, feeds, log_progress=1000):
+class BaseStream(abc.Iterator, ABC):
+    def __init__(self, *feeds: Iterator[ANY_MODEL], log_progress=100):
 
         # why _stream & _stream_muxer?
         # some operations work on individual streams, instead of the chained version
@@ -41,7 +48,7 @@ class BaseStream(ABCIterator):
 
         self.log_progress = log_progress
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[ANY_MODEL]:
         for i, e in enumerate(self._stream, 1):
             if self.log_progress and i % self.log_progress == 0:
                 print(f"Streamed {i} elements.")
@@ -162,44 +169,6 @@ class BaseStream(ABCIterator):
             writer = csv.writer(csv_file)
             writer.writerow(header_row)
             writer.writerows(stream)
-
-
-def sort_n(
-    stream: Iterator[Any],
-    num: Optional[int],
-    key: Optional[Callable] = None,
-    reverse: bool = False,
-    unique: bool = True,
-) -> Sequence[Any]:
-    """
-    Sort a stream. Processes the whole stream, but loads only num*2 elements in memory.
-    :param stream:
-    :param num:
-    :param key:
-    :param reverse:
-    :param unique:
-    :return:
-    """
-
-    results = []
-    while True:
-        buffer = take(num, stream)
-        if not buffer:
-            return results
-        if unique:
-            buffer = set(buffer)
-        results.extend(buffer)
-        results = sorted(results, key=key, reverse=reverse)[:num]
-
-
-def _get_datetime(d: Union[int, str, datetime, pendulum.datetime]) -> pendulum.datetime:
-    if isinstance(d, str):
-        return pendulum.parse(d, tz="UTC")
-    if isinstance(d, int):
-        return pendulum.from_timestamp(d, tz="UTC")
-    if isinstance(d, datetime):
-        return pendulum.instance(d, tz="UTC")
-    return d
 
 
 class ThumbStream(BaseStream):
