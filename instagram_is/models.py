@@ -76,3 +76,7 @@ class InstagramUser(NamedTuple):
     username: str
     connected_fb_page: str
     media_count: int
+
+
+class InstagramComment(NamedTuple):
+    pass
