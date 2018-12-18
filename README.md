@@ -52,10 +52,12 @@ iis.location_feed(locations)\
    .post_stream()\
    # return posts from last 7 days, up to 10 per user
    .recent(days=7)\
-   .limit_each(10)\ # limit each muxed user stream
+   # limit each muxed user stream
+   .limit_each(10)\
    .save_csv('top_influencers_recent_posts.csvs')\
    .comment_stream()\
-   .limit(100)\ # max 100 total comments, roundrobin per post
+   # max 100 total comments, roundrobin per post
+   .limit(100)\
    .save_csv('top_influencers_recent_comments.csv')\
    .run()
 
