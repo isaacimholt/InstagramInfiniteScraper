@@ -77,9 +77,17 @@ iis.location_feed(locations)\
    .save_csv('top_influencers_recent_posts.csvs')\
    # convert stream of posts to stream of comments per post
    .comment_stream()\
+   # let's take only posts in last 24hrs
+   # (filter is applied to each muxed stream individually)
+   .recent(hours=24)\
+   # now let's take only the most recent 10 comments from each post
+   # this way we can get a nice cross-section of comments
+   # (filter is applied to each muxed stream individually)
+   .limit_each(10)\
+   # now let's take the combined stream and sort it by creation date
+   # (sort operations must load all elements in memory)
+   .sort_property('created_at')\
    # max 100 total comments
-   # (because of the 'chained' nature of element ordering, it's possible
-   #  the limit will trigger before getting results from each post)
    .limit(100)\
    # save comments to csv
    .save_csv('top_influencers_recent_comments.csv')\
