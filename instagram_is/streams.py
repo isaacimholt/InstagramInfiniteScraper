@@ -39,6 +39,12 @@ class StreamMuxer(abc.Iterator):
         return next(self.__iter__())
 
     def __iter__(self) -> Iterator[ANY_MODEL]:
+        # try hard not to use round robin -- roundrobin and interleave_longest accept
+        # only *args, not an iterable of iterables, which means possibly a large
+        # quantity of streams will be initialized in memory from the muxer, and each
+        # with the first batch of results loaded in memory. Even if it was not the case
+        # that it accepted only *args, using a roundrobin would still load each stream's
+        # first batch of results.
         return chain.from_iterable(self._streams)
 
     def map_streams(self, fxn: Callable) -> None:
@@ -61,6 +67,7 @@ class GenericStream(Iterator[T]):
 
     def run(self) -> None:
         for _ in self:
+            # allow stream to perform stored actions
             pass
 
     def map(self, fxn: Callable):
