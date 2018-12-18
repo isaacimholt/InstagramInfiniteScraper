@@ -24,7 +24,7 @@ top_posts = iis\
     .created_range(after, before)\
     .top(10, 'engagement', unique=True)\
     .save_csv('top_10_posts.csv')\
-    .to_list(sort='created_at')
+    .sort('created_at')
 
 top_users = [p.owner_num_id for p in top_posts]
 
@@ -38,4 +38,25 @@ iis\
     .created_range(after, before)\
     .unique()\
     .to_csv('my_data.csv')
+
+# todo
+iis.location_feed(locations)\
+   .created_range(after, before)\
+   .top(10, 'engagement', unique=True)\
+   .save_csv('top_10_posts.csv')\
+   .owner_stream()\
+   .top(5, 'followed_by_count', unique=True)\
+   .save_csv('top_5_influencers.csv')\
+   # todo: change stream chain to roundrobin?
+   # todo: these stream methods return muxed streams
+   .post_stream()\
+   # return posts from last 7 days, up to 10 per user
+   .recent(days=7)\
+   .limit_each(10)\ # limit each muxed user stream
+   .save_csv('top_influencers_recent_posts.csvs')\
+   .comment_stream()\
+   .limit(100)\ # max 100 total comments, roundrobin per post
+   .save_csv('top_influencers_recent_comments.csv')\
+   .run()
+
 ```

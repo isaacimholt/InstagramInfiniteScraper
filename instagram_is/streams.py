@@ -10,10 +10,8 @@ from typing import (
     Callable,
     Iterator,
     Any,
-    List,
     Optional,
     Sequence,
-    Set,
     Union,
     TypeVar,
     NamedTuple,
@@ -54,7 +52,19 @@ class GenericStream(Iterator[T]):
     def __next__(self) -> T:
         return next(self)
 
+    def merge_streams(self):
+        # must be of same iterable type
+        raise NotImplementedError
+
+    def property_stream(self, prop: str):
+        return (getattr(i, prop) for i in self)
+
+    def run(self) -> None:
+        for _ in self:
+            pass
+
     def map(self, fxn: Callable):
+        raise NotImplementedError
         return GenericStream(map(fxn, self))
 
 
@@ -83,20 +93,19 @@ class NamedTupleStream(GenericStream[NamedTuple]):
 
     def unique(self) -> NamedTupleStream:
         """
-        Must keep elements in memory to determine uniqueness
-        :return:
+        Caution: Loads all elements into memory to determine uniqueness.
         """
         self._stream = unique_everseen(self._stream)
         return self
 
-    def to_list(self, sort: Optional[str] = None, reverse=True) -> List:
-        if sort:
-            return sorted(self._stream, key=attrgetter(sort), reverse=reverse)
-        return list(self._stream)
-
-    def to_set(self) -> Set:
-        # todo: move into generic stream
-        return set(self._stream)
+    def sort(
+        self, key: Optional[Callable] = None, reverse: bool = True
+    ) -> NamedTupleStream:
+        """
+        Caution: Loads all elements into memory to perform sorting.
+        """
+        self._stream = (i for i in sorted(self._stream, key=key, reverse=reverse))
+        return self
 
     def top(self, num: int, attr: str, unique: bool = True) -> NamedTupleStream:
         self._stream = sort_n(
@@ -203,28 +212,51 @@ class NamedTupleStream(GenericStream[NamedTuple]):
                 writer.writerow(i)
                 yield i
 
-    def to_csv(
-        self, file_name: str, header_row: Optional[Sequence[str]] = None
-    ) -> None:
-        for _ in self.save_csv(file_name=file_name, header_row=header_row):
-            pass
-
-    def to_stream(self, attr: str, stream, stream_type):
-        m = map(attrgetter(attr), self)
-        return UserStream()
-
 
 class ThumbStream(NamedTupleStream[InstagramPostThumb]):
-    pass
+    def post_stream(self):
+        raise NotImplementedError
+
+    def owner_stream(self):
+        raise NotImplementedError
+
+    def hashtag_streams(self):
+        # list of streams
+        raise NotImplementedError
 
 
 class PostStream(NamedTupleStream[InstagramPost]):
-    pass
+    def thumb_stream(self):
+        raise NotImplementedError
+
+    def owner_stream(self):
+        raise NotImplementedError
+
+    def location_stream(self):
+        raise NotImplementedError
+
+    def comment_stream(self):
+        raise NotImplementedError
+
+    def photo_user_stream(self):
+        """
+        Return stream of users present in photo, if any.
+        """
+        raise NotImplementedError
+
+    def hashtag_streams(self):
+        # list of streams
+        raise NotImplementedError
 
 
 class UserStream(NamedTupleStream[InstagramUser]):
-    pass
+    def post_stream(self):
+        raise NotImplementedError
 
 
 class CommentStream(NamedTupleStream[InstagramComment]):
-    pass
+    def owner_stream(self):
+        raise NotImplementedError
+
+    def commenter_stream(self):
+        raise NotImplementedError
