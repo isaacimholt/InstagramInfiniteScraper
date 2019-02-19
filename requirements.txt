@@ -6,10 +6,16 @@
 #
 -e git+https://git@github.com/ping/instagram_private_api.git@1.5.7#egg=instagram_private_api
 addict==2.2.0
+atomicwrites==1.3.0       # via pytest
+attrs==18.2.0             # via pytest
 backoff==1.8.0
+colorama==0.4.1           # via pytest
 more-itertools==6.0.0
 pendulum==2.0.4
+pluggy==0.8.1             # via pytest
+py==1.7.0                 # via pytest
+pytest==4.3.0
 python-dateutil==2.8.0    # via pendulum
 pytzdata==2018.9          # via pendulum
 ratelimit==2.2.1
-six==1.12.0               # via python-dateutil
+six==1.12.0               # via pytest, python-dateutil

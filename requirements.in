@@ -4,3 +4,4 @@ backoff
 more-itertools
 pendulum
 ratelimit
+pytest # todo: move to dev requirements
